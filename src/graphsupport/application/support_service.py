@@ -36,6 +36,9 @@ from graphsupport.graph.repositories.customer_repo import CustomerRepository
 from graphsupport.graph.repositories.product_repo import ProductRepository
 from graphsupport.graph.repositories.ticket_repo import TicketRepository
 from graphsupport.graph.repositories.troubleshooting_repo import TroubleshootingRepository
+from graphsupport.memory.context_builder import ContextBuilder
+from graphsupport.memory.history_retriever import HistoryRetriever
+from graphsupport.memory.models import CustomerMemoryContext, RetrievalLimits
 
 logger = logging.getLogger("graphsupport.application.support_service")
 
@@ -62,6 +65,8 @@ class SupportService:
         ticket_repo: TicketRepository | None = None,
         conversation_repo: ConversationRepository | None = None,
         troubleshooting_repo: TroubleshootingRepository | None = None,
+        history_retriever: HistoryRetriever | None = None,
+        context_builder: ContextBuilder | None = None,
     ) -> None:
         self.driver_manager = driver_manager or get_driver_manager()
         self.database = database or self.driver_manager.settings.neo4j_database
@@ -81,6 +86,10 @@ class SupportService:
         self.troubleshooting_repo = troubleshooting_repo or TroubleshootingRepository(
             driver_manager=self.driver_manager, database=self.database
         )
+        self.history_retriever = history_retriever or HistoryRetriever(
+            driver_manager=self.driver_manager, database=self.database
+        )
+        self.context_builder = context_builder or ContextBuilder()
 
     # =========================================================================
     # Customer Operations
@@ -650,3 +659,51 @@ class SupportService:
         if not tid:
             raise ValidationError("Ticket ID cannot be empty")
         return self.troubleshooting_repo.get_ticket_resolutions(tid)
+
+    # =========================================================================
+    # Phase 4 Graph Memory & Context Retrieval
+    # =========================================================================
+
+    def retrieve_customer_context(
+        self,
+        customer_id: str,
+        product_id: str | None = None,
+        issue_query: str | None = None,
+        ticket_id: str | None = None,
+        limits: RetrievalLimits | None = None,
+    ) -> CustomerMemoryContext:
+        """Retrieve bounded, structured customer context and history from Neo4j.
+
+        Performs parameter validation, customer and ticket ownership checks,
+        deterministic relevance ranking, and constructs an explainable memory context.
+
+        Args:
+            customer_id: Unique customer identifier.
+            product_id: Optional product filter.
+            issue_query: Optional search keyword or description.
+            ticket_id: Optional specific ticket identifier.
+            limits: Bounding limits for records and text lengths.
+
+        Returns:
+            CustomerMemoryContext containing structured, serializable graph memory.
+
+        Raises:
+            ValidationError: If customer_id is empty or invalid.
+            EntityNotFoundError: If customer or referenced entity does not exist.
+            AuthorizationError: If ticket does not belong to the customer.
+            RepositoryError: If Neo4j connectivity or query execution fails.
+        """
+        raw_history = self.history_retriever.retrieve_raw_history(
+            customer_id=customer_id,
+            product_id=product_id,
+            ticket_id=ticket_id,
+            issue_query=issue_query,
+            limits=limits,
+        )
+        return self.context_builder.build_memory_context(
+            raw_history=raw_history,
+            queried_product_id=product_id,
+            queried_ticket_id=ticket_id,
+            issue_query=issue_query,
+            limits=limits,
+        )

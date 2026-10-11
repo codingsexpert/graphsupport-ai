@@ -28,9 +28,17 @@ def test_package_modules_importable() -> None:
         "graphsupport.graph.repositories.troubleshooting_repo",
         "graphsupport.application",
         "graphsupport.application.support_service",
+        "graphsupport.memory",
+        "graphsupport.memory.models",
+        "graphsupport.memory.history_retriever",
+        "graphsupport.memory.relevance_ranker",
+        "graphsupport.memory.context_builder",
+        "graphsupport.memory.memory_writer",
         "graphsupport.ui",
         "graphsupport.ui.styles",
         "graphsupport.ui.components",
+        "graphsupport.ui.data_management",
+        "graphsupport.ui.memory_inspector",
         "graphsupport.ui.navigation",
     ]
     for mod_name in modules:

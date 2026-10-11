@@ -112,3 +112,60 @@ All core entities employ durable application-generated UUID4 identifiers as prim
 - Enforces customer context and authorization boundaries across conversations and tickets.
 - Translates database-level constraint violations into structured domain exceptions (`DuplicateEntityError`, `EntityNotFoundError`, `ValidationError`).
 - Ensures non-destructive updates so customer identity cannot be accidentally replaced.
+
+---
+
+## 5. Persistent Graph Memory & Context Retrieval (Phase 4)
+
+### A. Memory Subsystem Architecture (`graphsupport.memory`)
+
+```
++------------------------------------------------------------------------------------+
+|               SupportService.retrieve_customer_context(customer_id, ...)           |
++------------------------------------------------------------------------------------+
+                                           |
+                                           v
++------------------------------------------------------------------------------------+
+|                  HistoryRetriever (graphsupport.memory.history_retriever)          |
+|  - Validates customer ID and queries customer existence in Neo4j                  |
+|  - Enforces tenant ownership checks (Ticket must belong to Customer)              |
+|  - Parameterized subgraphs: Products, Tickets, Issues, Attempts, Resolutions      |
++------------------------------------------+-----------------------------------------+
+                                           |
+                                           v
++------------------------------------------------------------------------------------+
+|                  RelevanceRanker (graphsupport.memory.relevance_ranker)            |
+|  - Deterministic scoring: active tickets, ticket ID match, product match,          |
+|    keyword overlap, recency decay, failed attempts weight                          |
+|  - Zero embeddings / vector databases / external ranking APIs                     |
++------------------------------------------+-----------------------------------------+
+                                           |
+                                           v
++------------------------------------------------------------------------------------+
+|                   ContextBuilder (graphsupport.memory.context_builder)              |
+|  - Bounded assembly per RetrievalLimits (max_tickets, max_messages)                |
+|  - Diagnostic missing-information flags (e.g. ticket_<id>_has_failed_attempt)      |
+|  - Output: Serializable CustomerMemoryContext suitable for future Phase 5 LLM     |
++------------------------------------------------------------------------------------+
+```
+
+### B. Deterministic Relevance Scoring Criteria
+
+Tickets are ranked using transparent, explainable scoring criteria:
+1. **Explicit Ticket ID Match (+30.0)**: Highest weight when user or operator focuses on a specific ticket.
+2. **Active Ticket Status (+15.0 / +12.0)**: `in_progress` (+15.0), `open` (+12.0), `resolved` (+3.0), `closed` (+1.0).
+3. **Product Match (+10.0 / +3.0)**: Queried product match (+10.0), or customer-associated product (+3.0).
+4. **Issue Keyword Overlap (Up to +15.0)**: Tokenized overlap against ticket title, description, and issue summaries (+5.0 per token match, capped at +15.0).
+5. **Recency Boost (+6.0 to +0.5)**: Decaying recency based on `updated_at` or `created_at` (≤24h: +6.0, ≤7d: +4.0, ≤30d: +2.0, >30d: +0.5).
+6. **Diagnostic History Weight (+4.0 / +2.0)**: Tickets with unresolved failed troubleshooting attempts receive +4.0 weight to avoid repeating failed actions; partial attempts receive +2.0.
+
+### C. Outcome Fidelity & Persistence Guarantees
+
+1. **Strict Outcome Preservation**: Historical diagnostic outcomes are never mutated:
+   - A `failed` attempt remains strictly `failed`.
+   - A `success` attempt remains strictly `success`.
+   - Unknown outcomes remain `unknown`.
+2. **Cross-Session Durability**: Neo4j is the single source of truth. Destroying the application session and instantiating a fresh service instance produces the exact same context.
+3. **Anti-Hallucination Guard**: Historical data is never upgraded to confirmed facts without new database evidence. If no registered product or prior ticket exists, missing-information indicators (`no_prior_tickets_found`, `no_registered_products`) explicitly mark the absence of data.
+4. **Tenant Isolation**: Tickets belonging to another customer are strictly filtered out; explicit access attempts raise `AuthorizationError`.
+

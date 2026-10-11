@@ -14,6 +14,7 @@ from graphsupport.ui import (
     render_database_control_panel,
     render_header,
     render_phase3_data_management,
+    render_phase4_memory_inspector,
     render_phase_roadmap,
     render_safe_config_section,
     render_sidebar,
@@ -51,14 +52,14 @@ def main() -> None:
             "Context-aware customer support engine powered by Neo4j graph intelligence "
             "and cross-session memory."
         ),
-        phase_name="Phase 3: Persistent Support Data Layer",
+        phase_name="Phase 4: Persistent Graph Memory & Retrieval",
     )
 
     st.markdown(
         """
-        > **Phase 3 Status**: The persistent customer support data layer is active. Customers,
-        > products, issues, tickets, conversations, troubleshooting steps, and resolutions are
-        > securely stored in Neo4j with full graph relationship integrity.
+        > **Phase 4 Status**: Persistent graph memory & context retrieval is active. Customer
+        > knowledge subgraphs are deterministically retrieved and ranked with outcome fidelity
+        > from Neo4j across sessions.
         """
     )
 
@@ -67,7 +68,12 @@ def main() -> None:
 
     st.divider()
 
-    # 8. Render Phase 3 Customer Support Workbench
+    # 8. Render Phase 4 Graph Memory Inspector
+    render_phase4_memory_inspector(settings)
+
+    st.divider()
+
+    # 9. Render Phase 3 Customer Support Workbench
     render_phase3_data_management(settings)
 
     st.divider()

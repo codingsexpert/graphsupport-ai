@@ -13,13 +13,40 @@ GraphSupport AI is an enterprise customer support platform designed to remember 
 | **Phase 1** | **Professional Foundation** | **Completed** | Modular Python package, typed configuration, logging, health check, UI scaffold, automated tests |
 | **Phase 2** | **Neo4j Schema & Storage** | **Completed** | Neo4j driver connection pooling, graph models, uniqueness constraints, indexes, customer repository |
 | **Phase 3** | **Persistent Customer Support Data Layer** | **Completed** | Persistent Customers, Products, Issues, Tickets, Conversations, Messages, Attempts, Resolutions, Service layer, Streamlit Workbench |
-| **Phase 4** | **Graph Retrieval & Memory** | *Pending* | Persistent graph memory, customer history retrieval, ticket-context retrieval, relevance ranking |
+| **Phase 4** | **Graph Retrieval & Memory** | **Completed** | Persistent graph memory, customer context retrieval, deterministic relevance ranking, outcome fidelity, Streamlit Memory Inspector |
 | **Phase 5** | **Context-Aware LLM Agent** | *Pending* | LLM reasoning engine, prompt orchestration, cross-session memory |
 | **Phase 6** | **Interactive Support UI** | *Pending* | Interactive Streamlit portal, chat UI, graph visualizer |
 
 ---
 
-## 🕸️ Graph Data Architecture (Phase 3)
+## 🧠 Persistent Graph Memory & Retrieval (Phase 4)
+
+Phase 4 establishes cross-session persistent customer memory using deterministic graph retrieval from Neo4j. It provides the structured context layer required for subsequent LLM reasoning in Phase 5 without premature AI agent logic, embeddings, or external vector databases.
+
+### 1. Memory Architecture Components (`graphsupport.memory`)
+- **`HistoryRetriever`**: Parameterized Cypher queries traversing customer products, open/recent tickets, issues, sequential attempts, resolutions, and messages with strict customer ownership validation.
+- **`RelevanceRanker`**: Transparent, deterministic ranking scoring tickets by active status, explicit ticket match, product match, keyword overlap, recency decay, and failed attempt weight.
+- **`ContextBuilder`**: Compiles raw retrieved graph records into a bounded, serializable `CustomerMemoryContext` model with diagnostic missing-information indicators (`no_prior_tickets_found`, `ticket_<id>_has_failed_attempt_step_<n>`).
+- **`MemoryWriter`**: Safely coordinates write operations for new interactions, diagnostic attempts, and resolutions through `SupportService`.
+
+### 2. Deterministic Relevance Ranking Formula
+| Factor | Weight | Condition |
+|---|---|---|
+| **Explicit Ticket Match** | `+30.0` | Focuses on queried `ticket_id` parameter |
+| **Active Status** | `+15.0` / `+12.0` | `in_progress` (+15.0), `open` (+12.0), `resolved` (+3.0), `closed` (+1.0) |
+| **Product Match** | `+10.0` / `+3.0` | Queried product match (+10.0), customer product portfolio match (+3.0) |
+| **Keyword Overlap** | Up to `+15.0` | `+5.0` per token match against ticket title, description, and issue text |
+| **Recency Decay** | `+6.0` to `+0.5` | ≤24h (+6.0), ≤7d (+4.0), ≤30d (+2.0), >30d (+0.5) |
+| **Diagnostic History** | `+4.0` / `+2.0` | Unresolved failed attempts (+4.0) to prioritize issues needing alternative fixes; partial attempts (+2.0) |
+
+### 3. Outcome Fidelity Guarantees
+- **No Outcome Mutation**: Failed diagnostic attempts remain strictly `failed`; successful attempts remain `success`. Historical facts are never inverted or upgraded without verified evidence.
+- **Anti-Hallucination Boundaries**: Missing information is explicitly flagged via `missing_information` indicator strings instead of assuming defaults.
+- **Tenant Isolation**: Tickets belonging to other customers are blocked at the application boundary (`AuthorizationError`).
+
+---
+
+## 🕸️ Graph Data Architecture (Phase 3 & 4)
 
 ### Node Entities
 - `Customer`: Unique customer identity (`id` UUID, `email` UNIQUE, `name`, `tier`, `created_at`, `metadata`).
@@ -125,7 +152,7 @@ python scripts/check_environment.py
 ```bash
 streamlit run app.py
 ```
-Open your browser at `http://localhost:8501` to access the Phase 3 Customer Support Workbench.
+Open your browser at `http://localhost:8501` to access the Phase 4 Memory Inspector and Phase 3 Workbench.
 
 ---
 
@@ -133,21 +160,28 @@ Open your browser at `http://localhost:8501` to access the Phase 3 Customer Supp
 
 ### Run Unit and Integration Tests
 ```bash
-# Run all tests (unit + live integration)
+# Run all tests (all 81 unit + live integration tests)
 pytest -v
 
-# Run unit tests only (fast, completely mocked)
-pytest tests/unit/ -v
+# Run Phase 4 graph memory unit tests (completely mocked, fast)
+pytest tests/unit/test_graph_memory.py -v
 
-# Run live Neo4j integration tests
+# Run Phase 4 live cross-session memory integration test against Neo4j Aura
+pytest tests/integration/test_phase4_live.py -v
+
+# Run all live Neo4j integration tests
 pytest tests/integration/ -v
 ```
 
-### Code Style & Formatting
-```bash
-ruff check .
-ruff format --check .
-```
+### Reproducing Cross-Session Persistence Demo
+To verify that history survives across application sessions:
+1. In the Streamlit UI (or via `SupportService`), register a customer and a product.
+2. Open a ticket for that product (e.g. "WiFi dropping connection").
+3. Record a troubleshooting attempt with outcome `failed` (e.g. "Factory Reset" -> `FAILED`).
+4. Terminate the Streamlit server or start a new python session (`del service; service = SupportService()`).
+5. Open the **Phase 4: Persistent Graph Memory Inspector** section in the UI or run `service.retrieve_customer_context(customer_id)`.
+6. Verify that the previous ticket, product linkage, and the failed troubleshooting attempt are retrieved intact from Neo4j.
+7. Verify that the failed attempt remains marked as `🔴 FAILED` with diagnostic flags preserved.
 
 ---
 
@@ -155,10 +189,22 @@ ruff format --check .
 
 - **Parameterization**: 100% of Cypher queries use `$params` without string concatenation or f-string interpolation.
 - **Secret Safety**: Passwords, URIs, and tokens are automatically masked by Pydantic Settings and filtered from log outputs.
-- **Demo Identity Boundary**: Customer ownership checks are verified in the application layer. Full enterprise authentication (OAuth2/OIDC) is scheduled for subsequent phases.
+- **Tenant Ownership Validation**: Customer-to-ticket ownership is verified before context assembly. Attempting to access another customer's ticket raises `AuthorizationError`.
+- **Bounded Ingestion**: Queries use explicit limits (`RetrievalLimits`) to prevent unbounded graph traversals from causing memory bloat or giant LLM prompts.
+
+---
+
+## 🔮 Scope Boundaries & Deferred Features (Phase 5)
+
+Phase 4 strictly implements deterministic graph retrieval and context compilation. The following features are intentionally deferred to Phase 5:
+- **LLM Reasoning & Chat**: AI conversational agent and prompt orchestration.
+- **Configurable LLM Provider**: Integration with Gemini / OpenAI / Anthropic APIs.
+- **Autonomous Tool-Calling**: Dynamic execution of database updates by an LLM loop.
+- **Automated Escalation**: Machine-driven tier escalations.
 
 ---
 
 ## 📄 License
 
 Proprietary — Internal Development.
+

@@ -9,6 +9,7 @@ from graphsupport.ui.components import (
     render_status_cards,
 )
 from graphsupport.ui.data_management import render_phase3_data_management
+from graphsupport.ui.memory_inspector import render_phase4_memory_inspector
 from graphsupport.ui.navigation import render_sidebar
 from graphsupport.ui.styles import apply_custom_styles
 
@@ -18,6 +19,7 @@ __all__ = [
     "render_status_cards",
     "render_database_control_panel",
     "render_phase3_data_management",
+    "render_phase4_memory_inspector",
     "render_architecture_overview",
     "render_safe_config_section",
     "render_phase_roadmap",
