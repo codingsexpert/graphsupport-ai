@@ -719,3 +719,331 @@ class SupportService:
             issue_query=issue_query,
             limits=limits,
         )
+
+    # =========================================================================
+    # Phase 6 Dashboard Queries & Graph Explorer
+    # =========================================================================
+
+    def list_all_tickets(
+        self,
+        status: TicketStatus | str | None = None,
+        limit: int = 50,
+        skip: int = 0,
+    ) -> list[SupportTicket]:
+        """List all support tickets across customers with optional status filter."""
+        status_enum: TicketStatus | None = None
+        if status is not None:
+            if isinstance(status, str):
+                try:
+                    status_enum = TicketStatus(status.strip().lower())
+                except ValueError as err:
+                    valid = [s.value for s in TicketStatus]
+                    raise ValidationError(
+                        f"Invalid ticket status filter '{status}'. Allowed values: {valid}"
+                    ) from err
+            else:
+                status_enum = status
+
+        return self.ticket_repo.list_all_tickets(status=status_enum, limit=limit, skip=skip)
+
+    def list_all_conversations(self, limit: int = 50, skip: int = 0) -> list[Conversation]:
+        """List all conversations across customers with pagination."""
+        return self.conversation_repo.list_all_conversations(limit=limit, skip=skip)
+
+    def list_recent_troubleshooting_steps(self, limit: int = 10) -> list[TroubleshootingStep]:
+        """List recent troubleshooting diagnostic steps across tickets."""
+        return self.troubleshooting_repo.list_recent_steps(limit=limit)
+
+    def list_recent_resolutions(self, limit: int = 10) -> list[Resolution]:
+        """List recent verified ticket resolutions."""
+        return self.troubleshooting_repo.list_recent_resolutions(limit=limit)
+
+    def get_overview_metrics(self) -> dict[str, Any]:
+        """Compute real overview metrics directly from Neo4j knowledge graph."""
+        query = """
+        CALL {
+            MATCH (c:Customer) RETURN count(c) AS customer_count
+        }
+        CALL {
+            MATCH (p:Product) RETURN count(p) AS product_count
+        }
+        CALL {
+            MATCH (t:SupportTicket)
+            RETURN count(t) AS total_tickets,
+                   count(CASE WHEN t.status = 'open' THEN 1 END) AS open_tickets,
+                   count(CASE WHEN t.status = 'in_progress' THEN 1 END) AS in_progress_tickets,
+                   count(CASE WHEN t.status = 'resolved' THEN 1 END) AS resolved_tickets,
+                   count(CASE WHEN t.status = 'closed' THEN 1 END) AS closed_tickets
+        }
+        RETURN customer_count, product_count, total_tickets,
+               open_tickets, in_progress_tickets, resolved_tickets, closed_tickets
+        """
+        try:
+            with self.driver_manager.session(database=self.database) as session:
+                rec = session.run(query).single()
+                if rec:
+                    c_count = rec["customer_count"]
+                    p_count = rec["product_count"]
+                    tot_tickets = rec["total_tickets"]
+                    open_t = rec["open_tickets"]
+                    inp_t = rec["in_progress_tickets"]
+                    res_t = rec["resolved_tickets"]
+                    clo_t = rec["closed_tickets"]
+                else:
+                    c_count = p_count = tot_tickets = open_t = inp_t = res_t = clo_t = 0
+        except Exception as err:
+            logger.error("Failed to compute overview metrics: %s", err)
+            raise
+
+        recent_tickets = self.list_all_tickets(limit=5)
+        recent_steps = self.list_recent_troubleshooting_steps(limit=5)
+        recent_res = self.list_recent_resolutions(limit=5)
+
+        return {
+            "total_customers": c_count,
+            "total_products": p_count,
+            "total_tickets": tot_tickets,
+            "open_tickets": open_t,
+            "in_progress_tickets": inp_t,
+            "resolved_tickets": res_t,
+            "closed_tickets": clo_t,
+            "recent_tickets": recent_tickets,
+            "recent_steps": recent_steps,
+            "recent_resolutions": recent_res,
+        }
+
+    def get_subgraph(
+        self,
+        customer_id: str | None = None,
+        ticket_id: str | None = None,
+        max_nodes: int = 50,
+    ) -> dict[str, Any]:
+        """Retrieve bounded nodes and edges for graph explorer visualization.
+
+        Enforces safe bounds, zero user Cypher, and strict node limits.
+        """
+        node_limit = max(10, min(max_nodes, 100))
+        nodes: dict[str, dict[str, Any]] = {}
+        edges: list[dict[str, str]] = []
+
+        with self.driver_manager.session(database=self.database) as session:
+            if customer_id:
+                cid = customer_id.strip()
+                q = """
+                MATCH (c:Customer {id: $cid})
+                OPTIONAL MATCH (c)-[:USES]->(p:Product)
+                OPTIONAL MATCH (c)-[:HAS_TICKET]->(t:SupportTicket)
+                OPTIONAL MATCH (t)-[:AFFECTS]->(tp:Product)
+                OPTIONAL MATCH (t)-[:HAS_ATTEMPT]->(s:TroubleshootingStep)
+                OPTIONAL MATCH (t)-[:HAS_RESOLUTION]->(r:Resolution)
+                OPTIONAL MATCH (c)-[:HAS_CONVERSATION]->(conv:Conversation)
+                RETURN c, collect(DISTINCT p)[..$limit] AS prods,
+                       collect(DISTINCT t)[..$limit] AS tkts,
+                       collect(DISTINCT tp)[..$limit] AS affected_prods,
+                       collect(DISTINCT s)[..$limit] AS steps,
+                       collect(DISTINCT r)[..$limit] AS resols,
+                       collect(DISTINCT conv)[..$limit] AS convs
+                """
+                rec = session.run(q, {"cid": cid, "limit": node_limit}).single()
+                if rec and rec["c"]:
+                    c_node = rec["c"]
+                    nodes[c_node["id"]] = {
+                        "id": c_node["id"],
+                        "label": f"Customer: {c_node.get('name', c_node['id'])}",
+                        "type": "Customer",
+                        "properties": dict(c_node),
+                    }
+                    for p in rec["prods"] or []:
+                        if p and p["id"] not in nodes:
+                            nodes[p["id"]] = {
+                                "id": p["id"],
+                                "label": f"Product: {p.get('name', p['id'])}",
+                                "type": "Product",
+                                "properties": dict(p),
+                            }
+                            edges.append({"source": cid, "target": p["id"], "type": "USES"})
+                    for t in rec["tkts"] or []:
+                        if t and t["id"] not in nodes:
+                            nodes[t["id"]] = {
+                                "id": t["id"],
+                                "label": f"Ticket: {t.get('title', t['id'])[:25]}",
+                                "type": "Ticket",
+                                "properties": dict(t),
+                            }
+                            edges.append({"source": cid, "target": t["id"], "type": "HAS_TICKET"})
+                    for s in rec["steps"] or []:
+                        if s and s["id"] not in nodes:
+                            t_id = s.get("ticket_id")
+                            nodes[s["id"]] = {
+                                "id": s["id"],
+                                "label": f"Step {s.get('step_number')}: {s.get('action')[:20]}",
+                                "type": "Step",
+                                "properties": dict(s),
+                            }
+                            if t_id and t_id in nodes:
+                                edges.append(
+                                    {"source": t_id, "target": s["id"], "type": "HAS_ATTEMPT"}
+                                )
+                    for r in rec["resols"] or []:
+                        if r and r["id"] not in nodes:
+                            t_id = r.get("ticket_id")
+                            nodes[r["id"]] = {
+                                "id": r["id"],
+                                "label": f"Resolution: {r.get('summary')[:20]}",
+                                "type": "Resolution",
+                                "properties": dict(r),
+                            }
+                            if t_id and t_id in nodes:
+                                edges.append(
+                                    {"source": t_id, "target": r["id"], "type": "HAS_RESOLUTION"}
+                                )
+                    for conv in rec["convs"] or []:
+                        if conv and conv["id"] not in nodes:
+                            nodes[conv["id"]] = {
+                                "id": conv["id"],
+                                "label": f"Chat: {conv.get('session_id', conv['id'])}",
+                                "type": "Conversation",
+                                "properties": dict(conv),
+                            }
+                            edges.append(
+                                {"source": cid, "target": conv["id"], "type": "HAS_CONVERSATION"}
+                            )
+            elif ticket_id:
+                tid = ticket_id.strip()
+                q = """
+                MATCH (t:SupportTicket {id: $tid})
+                OPTIONAL MATCH (c:Customer)-[:HAS_TICKET]->(t)
+                OPTIONAL MATCH (t)-[:AFFECTS]->(p:Product)
+                OPTIONAL MATCH (i:Issue)-[:TRACKED_BY]->(t)
+                OPTIONAL MATCH (t)-[:HAS_ATTEMPT]->(s:TroubleshootingStep)
+                OPTIONAL MATCH (t)-[:HAS_RESOLUTION]->(r:Resolution)
+                RETURN t, c, p, i,
+                       collect(DISTINCT s)[..$limit] AS steps,
+                       collect(DISTINCT r)[..$limit] AS resols
+                """
+                rec = session.run(q, {"tid": tid, "limit": node_limit}).single()
+                if rec and rec["t"]:
+                    t_node = rec["t"]
+                    nodes[t_node["id"]] = {
+                        "id": t_node["id"],
+                        "label": f"Ticket: {t_node.get('title', t_node['id'])[:25]}",
+                        "type": "Ticket",
+                        "properties": dict(t_node),
+                    }
+                    if rec["c"]:
+                        c = rec["c"]
+                        nodes[c["id"]] = {
+                            "id": c["id"],
+                            "label": f"Customer: {c.get('name', c['id'])}",
+                            "type": "Customer",
+                            "properties": dict(c),
+                        }
+                        edges.append({"source": c["id"], "target": tid, "type": "HAS_TICKET"})
+                    if rec["p"]:
+                        p = rec["p"]
+                        nodes[p["id"]] = {
+                            "id": p["id"],
+                            "label": f"Product: {p.get('name', p['id'])}",
+                            "type": "Product",
+                            "properties": dict(p),
+                        }
+                        edges.append({"source": tid, "target": p["id"], "type": "AFFECTS"})
+                    if rec["i"]:
+                        i = rec["i"]
+                        nodes[i["id"]] = {
+                            "id": i["id"],
+                            "label": f"Issue: {i.get('title', i['id'])[:20]}",
+                            "type": "Issue",
+                            "properties": dict(i),
+                        }
+                        edges.append({"source": i["id"], "target": tid, "type": "TRACKED_BY"})
+                    for s in rec["steps"] or []:
+                        if s and s["id"] not in nodes:
+                            nodes[s["id"]] = {
+                                "id": s["id"],
+                                "label": f"Step {s.get('step_number')}: {s.get('action')[:20]}",
+                                "type": "Step",
+                                "properties": dict(s),
+                            }
+                            edges.append({"source": tid, "target": s["id"], "type": "HAS_ATTEMPT"})
+                    for r in rec["resols"] or []:
+                        if r and r["id"] not in nodes:
+                            nodes[r["id"]] = {
+                                "id": r["id"],
+                                "label": f"Resolution: {r.get('summary')[:20]}",
+                                "type": "Resolution",
+                                "properties": dict(r),
+                            }
+                            edges.append(
+                                {"source": tid, "target": r["id"], "type": "HAS_RESOLUTION"}
+                            )
+            else:
+                # Recent overview subgraph
+                q = """
+                MATCH (t:SupportTicket)
+                WITH t ORDER BY t.created_at DESC LIMIT 10
+                OPTIONAL MATCH (c:Customer)-[:HAS_TICKET]->(t)
+                OPTIONAL MATCH (t)-[:AFFECTS]->(p:Product)
+                OPTIONAL MATCH (t)-[:HAS_ATTEMPT]->(s:TroubleshootingStep)
+                OPTIONAL MATCH (t)-[:HAS_RESOLUTION]->(r:Resolution)
+                RETURN t, c, p,
+                       collect(DISTINCT s)[..5] AS steps,
+                       collect(DISTINCT r)[..3] AS resols
+                """
+                results = session.run(q)
+                for rec in results:
+                    t = rec["t"]
+                    if t and t["id"] not in nodes:
+                        nodes[t["id"]] = {
+                            "id": t["id"],
+                            "label": f"Ticket: {t.get('title', t['id'])[:25]}",
+                            "type": "Ticket",
+                            "properties": dict(t),
+                        }
+                    c = rec["c"]
+                    if c and c["id"] not in nodes:
+                        nodes[c["id"]] = {
+                            "id": c["id"],
+                            "label": f"Customer: {c.get('name', c['id'])}",
+                            "type": "Customer",
+                            "properties": dict(c),
+                        }
+                    if c and t:
+                        edges.append({"source": c["id"], "target": t["id"], "type": "HAS_TICKET"})
+                    p = rec["p"]
+                    if p and p["id"] not in nodes:
+                        nodes[p["id"]] = {
+                            "id": p["id"],
+                            "label": f"Product: {p.get('name', p['id'])}",
+                            "type": "Product",
+                            "properties": dict(p),
+                        }
+                    if t and p:
+                        edges.append({"source": t["id"], "target": p["id"], "type": "AFFECTS"})
+                    for s in rec["steps"] or []:
+                        if s and s["id"] not in nodes:
+                            nodes[s["id"]] = {
+                                "id": s["id"],
+                                "label": f"Step {s.get('step_number')}: {s.get('action')[:20]}",
+                                "type": "Step",
+                                "properties": dict(s),
+                            }
+                            edges.append(
+                                {"source": t["id"], "target": s["id"], "type": "HAS_ATTEMPT"}
+                            )
+                    for r in rec["resols"] or []:
+                        if r and r["id"] not in nodes:
+                            nodes[r["id"]] = {
+                                "id": r["id"],
+                                "label": f"Resolution: {r.get('summary')[:20]}",
+                                "type": "Resolution",
+                                "properties": dict(r),
+                            }
+                            edges.append(
+                                {"source": t["id"], "target": r["id"], "type": "HAS_RESOLUTION"}
+                            )
+
+        return {
+            "nodes": list(nodes.values())[:node_limit],
+            "edges": edges,
+        }

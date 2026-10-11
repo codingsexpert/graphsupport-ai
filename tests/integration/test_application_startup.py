@@ -40,6 +40,7 @@ def test_package_modules_importable() -> None:
         "graphsupport.agents.prompt_templates",
         "graphsupport.agents.output_parser",
         "graphsupport.agents.support_agent",
+        "graphsupport.application.evaluation",
         "graphsupport.ui",
         "graphsupport.ui.styles",
         "graphsupport.ui.components",
@@ -47,6 +48,17 @@ def test_package_modules_importable() -> None:
         "graphsupport.ui.memory_inspector",
         "graphsupport.ui.chat",
         "graphsupport.ui.navigation",
+        "graphsupport.ui.pages",
+        "graphsupport.ui.pages.overview",
+        "graphsupport.ui.pages.chat_page",
+        "graphsupport.ui.pages.customers_page",
+        "graphsupport.ui.pages.products_page",
+        "graphsupport.ui.pages.tickets_page",
+        "graphsupport.ui.pages.ticket_details_page",
+        "graphsupport.ui.pages.conversations_page",
+        "graphsupport.ui.pages.graph_explorer_page",
+        "graphsupport.ui.pages.system_health_page",
+        "graphsupport.ui.pages.evaluation_page",
     ]
     for mod_name in modules:
         mod = importlib.import_module(mod_name)

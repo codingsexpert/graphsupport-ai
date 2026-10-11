@@ -15,7 +15,8 @@ GraphSupport AI is an enterprise customer support platform designed to remember 
 | **Phase 3** | **Persistent Customer Support Data Layer** | **Completed** | Persistent Customers, Products, Issues, Tickets, Conversations, Messages, Attempts, Resolutions, Service layer, Streamlit Workbench |
 | **Phase 4** | **Graph Retrieval & Memory** | **Completed** | Persistent graph memory, customer context retrieval, deterministic relevance ranking, outcome fidelity, Streamlit Memory Inspector |
 | **Phase 5** | **Context-Aware LLM Agent** | **Completed** | Configurable LLM provider (Gemini, OpenAI, Mock), 7 domain tools, grounded prompt templates, response validator, Streamlit AI Chat |
-| **Phase 6** | **Interactive Support UI** | *Pending* | Interactive Streamlit portal, ticket views, conversation history, graph visualizer, evaluation interface |
+| **Phase 6** | **Interactive Support Dashboard** | **Completed** | 10-page operations dashboard, customer 360, ticket lifecycle, interactive vis.js graph explorer, offline evaluation suite |
+| **Phase 7** | **Security Hardening & Production Polish** | *Pending* | Threat modeling, authorization audit, prompt-injection red teaming, reliability testing, final demo readiness |
 
 ---
 
@@ -225,7 +226,24 @@ python scripts/check_environment.py
 ```bash
 streamlit run app.py
 ```
-Open your browser at `http://localhost:8501` to access the Phase 4 Memory Inspector and Phase 3 Workbench.
+Open your browser at `http://localhost:8501` to access the 10-page operations dashboard.
+
+---
+
+## 🖥️ GraphSupport AI Support Dashboard (Phase 6)
+
+Phase 6 provides a professional, operations-grade Streamlit dashboard structured into 10 dedicated pages:
+
+1. **Overview**: Real-time KPI telemetry (Customers, Tickets, Open/In-Progress/Resolved counts), ticket status distribution, recent diagnostic attempts, verified resolutions, and manual telemetry refresh.
+2. **Support Chat**: Interactive AI support assistant integrating the Phase 5 `SupportAgent`. Enforces customer memory grounding, shows active tool call telemetry, and provides session reset controls.
+3. **Customers**: Customer directory with ID search, Customer 360 overview (linked products, ticket history, conversation sessions), and validated customer onboarding.
+4. **Products**: Complete product catalog, SKU inspection, and customer-product relationship linkage forms.
+5. **Tickets**: Support ticket queue with status filtering (`open`, `in_progress`, `resolved`, `closed`), keyword search, and ticket opening workflow.
+6. **Ticket Details**: Deep diagnostic view featuring customer & product context, troubleshooting attempt timeline with outcome badges (`SUCCESS`, `FAILED`, `PARTIAL`, `UNKNOWN`), verified resolution cards, diagnostic attempt logging, and validated status lifecycle transitions.
+7. **Conversation History**: Multi-session audit log with conversation selector, chronological message stream, sender badges (`CUSTOMER`, `AGENT`), and ticket links.
+8. **Graph Explorer**: Safe, read-only graph visualizer using interactive vis.js physics layout. Features color-coded node taxonomy (Customer, Product, Ticket, Step, Resolution), bounded queries (10–60 nodes), and tabular fallback.
+9. **System Health**: Subsystem readiness auditing, explicit live Neo4j connectivity checks, idempotent schema initializers, and sanitized AI provider configurations.
+10. **Evaluation**: Offline benchmark runner evaluating memory grounding, outcome fidelity, tool safety, claim verification, prompt injection defense, and retrieval latency (consumes 0 paid LLM tokens).
 
 ---
 
@@ -233,8 +251,14 @@ Open your browser at `http://localhost:8501` to access the Phase 4 Memory Inspec
 
 ### Run Unit and Integration Tests
 ```bash
-# Run all tests (all 101 unit + live integration tests)
+# Run all tests (107 passing unit + live integration tests)
 pytest -v
+
+# Run Phase 6 dashboard unit tests
+pytest tests/unit/test_phase6_dashboard.py -v
+
+# Run Phase 6 live Neo4j Aura integration test
+pytest tests/integration/test_phase6_live.py -v
 
 # Run Phase 5 Agent unit tests (provider, tools, agent orchestrator)
 pytest tests/unit/test_agent_*.py tests/unit/test_support_agent.py -v
@@ -242,42 +266,32 @@ pytest tests/unit/test_agent_*.py tests/unit/test_support_agent.py -v
 # Run Phase 4 graph memory unit tests
 pytest tests/unit/test_graph_memory.py -v
 
-# Run Phase 5 live agent integration test against Neo4j Aura
-pytest tests/integration/test_phase5_agent_live.py -v
-
-# Run all live Neo4j integration tests
+# Run all live Neo4j Aura integration tests
 pytest tests/integration/ -v
 ```
-
-### Reproducing Cross-Session Persistence Demo
-To verify that history survives across application sessions:
-1. In the Streamlit UI (or via `SupportService`), register a customer and a product.
-2. Open a ticket for that product (e.g. "WiFi dropping connection").
-3. Record a troubleshooting attempt with outcome `failed` (e.g. "Factory Reset" -> `FAILED`).
-4. Terminate the Streamlit server or start a new python session (`del service; service = SupportService()`).
-5. Open the **Phase 4: Persistent Graph Memory Inspector** section in the UI or run `service.retrieve_customer_context(customer_id)`.
-6. Verify that the previous ticket, product linkage, and the failed troubleshooting attempt are retrieved intact from Neo4j.
-7. Verify that the failed attempt remains marked as `🔴 FAILED` with diagnostic flags preserved.
-8. Ask the AI Support Agent about the issue; note that it acknowledges the failed attempt and avoids suggesting it again!
 
 ---
 
 ## 🔒 Security & Authorization Boundaries
 
+- **No Raw Cypher from UI**: 100% of UI reads and mutations pass through `SupportService`.
 - **Parameterization**: 100% of Cypher queries use `$params` without string concatenation or f-string interpolation.
 - **Secret Safety**: Passwords, URIs, and API keys are automatically masked by Pydantic Settings and filtered from log outputs.
 - **Tenant Ownership Validation**: Customer-to-ticket ownership is verified before context assembly and before any tool action. Cross-customer manipulation is blocked at application runtime.
 - **Bounded Loops**: Agent tool loops are strictly capped at 4 iterations with maximum context limits.
 - **Untrusted Input Treatment**: User messages and database strings cannot alter system prompt instructions.
+- **Demo Identity Disclaimer**: The customer selector in the navigation bar is a development/demo utility; production deployments require authenticated enterprise identity tokens.
 
 ---
 
-## 🔮 Scope Boundaries & Deferred Features (Phase 6)
+## 🔮 Scope Boundaries & Deferred Features (Phase 7)
 
-Phase 5 completes the context-aware AI support agent and tool execution layer. The following features are intentionally scheduled for Phase 6:
-- **Polished Streamlit Support Dashboard**: Dedicated ticket views, live analytics, and filtering.
-- **Interactive Graph Explorer**: Visual rendering of customer-ticket-attempt subgraphs.
-- **Agent Evaluation Interface**: Systematic benchmark suite for diagnostic accuracy and hallucination rates.
+Phase 6 completes the professional support dashboard and evaluation suite. The following features are intentionally scheduled for Phase 7:
+- **Security Hardening**: Threat-model review, prompt-injection red teaming, and cross-tenant leak fuzzing.
+- **Enterprise Authentication & RBAC**: Role-based access control (Admin, Agent, Customer) replacing the demo customer selector.
+- **Reliability & Chaos Testing**: Database failure recovery, rate-limiting stress testing, and graceful degradation.
+- **Evaluation Deepening**: LLM-as-a-judge benchmarking on historical real-world support transcripts.
+- **Production Packaging**: Docker containerization, health check endpoints, and deployment automation.
 
 ---
 

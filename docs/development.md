@@ -81,6 +81,7 @@ All unit tests run against in-memory mocks without network dependencies:
 pytest tests/unit/ -v
 ```
 Includes:
+- `test_phase6_dashboard.py`: Navigation options, offline evaluation benchmark suite, delegation tests.
 - `test_agent_provider.py`: LLM provider authentication, timeouts, rate limits, model failure handling.
 - `test_agent_tools.py`: Tool registry allowlisting, input validation, customer authorization checks.
 - `test_support_agent.py`: Agent orchestrator workflow, memory grounding, tool loops, anti-hallucination.
@@ -93,7 +94,9 @@ Live tests target your configured Neo4j instance, test connectivity, and run ful
 ```bash
 pytest tests/integration/ -v
 ```
-Includes `test_phase5_agent_live.py` testing the complete agent request lifecycle against live Neo4j Aura.
+Includes:
+- `test_phase6_live.py`: Tests live Overview metrics, Subgraph extraction, and live evaluation execution against Neo4j Aura.
+- `test_phase5_agent_live.py`: Tests complete agent request lifecycle against live Neo4j Aura.
 *(If Neo4j is unconfigured or unreachable, integration tests skip automatically with clear messaging).*
 
 ---
@@ -116,9 +119,9 @@ print(f"Applied {report.succeeded}/{report.total} schema statements.")
 
 ### Via Streamlit UI
 1. Launch `streamlit run app.py`.
-2. Locate the **Neo4j Database Operations** control panel.
-3. Click **⚡ Initialize Graph Schema (Idempotent)**.
-4. Interact with the **Phase 3: Persistent Customer Support Workbench** across Customers, Products, Tickets, Conversations, and Troubleshooting.
+2. Navigate to **System Health** in the sidebar.
+3. Click **⚡ Apply Schema Constraints & Indexes**.
+4. Explore the 10 operations pages (Overview, Support Chat, Customers, Products, Tickets, Ticket Details, Conversation History, Graph Explorer, System Health, Evaluation).
 
 ---
 

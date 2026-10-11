@@ -120,6 +120,33 @@ class ConversationRepository:
         except Exception as err:
             raise RepositoryError(f"Failed to list customer conversations: {err}") from err
 
+    def list_all_conversations(self, limit: int = 50, skip: int = 0) -> list[Conversation]:
+        """List all conversations across customers with pagination."""
+        if limit < 1 or limit > 500:
+            raise ValidationError(f"Limit must be between 1 and 500, got {limit}")
+        if skip < 0:
+            raise ValidationError(f"Skip cannot be negative, got {skip}")
+
+        query = """
+        MATCH (conv:Conversation)
+        OPTIONAL MATCH (c:Customer)-[:HAS_CONVERSATION]->(conv)
+        RETURN conv.id AS id, conv.session_id AS session_id, conv.channel AS channel,
+               conv.started_at AS started_at, conv.status AS status, c.id AS customer_id
+        ORDER BY conv.started_at DESC, conv.id ASC
+        SKIP $skip
+        LIMIT $limit
+        """
+        conversations: list[Conversation] = []
+        try:
+            with self.driver_manager.session(database=self.database) as session:
+                params = {"skip": skip, "limit": limit}
+                result = session.run(query, params)
+                for record in result:
+                    conversations.append(self._record_to_conversation(record))
+            return conversations
+        except Exception as err:
+            raise RepositoryError(f"Failed to list all conversations: {err}") from err
+
     def append_message(
         self,
         message: Message,

@@ -1,7 +1,16 @@
-"""GraphSupport AI - Main Streamlit Application Entrypoint.
+"""GraphSupport AI - Main Streamlit Application Entrypoint (Phase 6).
 
-Provides a clean dashboard presenting system readiness, architectural overview,
-safe runtime configuration, Neo4j connectivity controls, and project phase status.
+Modular dashboard router providing navigation across all 10 operations pages:
+1. Overview
+2. Support Chat
+3. Customers
+4. Products
+5. Tickets
+6. Ticket Details
+7. Conversation History
+8. Graph Explorer
+9. System Health
+10. Evaluation
 """
 
 import streamlit as st
@@ -10,28 +19,30 @@ from graphsupport.config import get_settings
 from graphsupport.core import check_health, configure_logging
 from graphsupport.ui import (
     apply_custom_styles,
-    render_architecture_overview,
-    render_database_control_panel,
+    render_chat_page,
+    render_conversations_page,
+    render_customers_page,
+    render_evaluation_page,
+    render_graph_explorer_page,
     render_header,
-    render_phase3_data_management,
-    render_phase4_memory_inspector,
-    render_phase5_support_chat,
-    render_phase_roadmap,
-    render_safe_config_section,
+    render_overview_page,
+    render_products_page,
     render_sidebar,
-    render_status_cards,
+    render_system_health_page,
+    render_ticket_details_page,
+    render_tickets_page,
 )
 
 
 def main() -> None:
-    """Initialize and render the GraphSupport AI dashboard."""
+    """Initialize and route the GraphSupport AI operational dashboard."""
     # 1. Load typed settings & initialize structured logging
     settings = get_settings()
     configure_logging(settings)
 
     # 2. Configure Streamlit page layout
     st.set_page_config(
-        page_title=f"{settings.app_name} - AI Customer Support Agent",
+        page_title=f"{settings.app_name} - Support Operations Dashboard",
         page_icon="🕸️",
         layout="wide",
         initial_sidebar_state="expanded",
@@ -40,67 +51,45 @@ def main() -> None:
     # 3. Apply custom design system styles
     apply_custom_styles()
 
-    # 4. Perform local non-sensitive health check (no expensive network query on initial rerun)
+    # 4. Perform local non-sensitive health check
     health = check_health(settings, verify_database=False)
 
-    # 5. Render sidebar
-    render_sidebar(settings, health)
+    # 5. Render sidebar navigation & get active page
+    selected_page = render_sidebar(settings, health)
 
-    # 6. Render main content areas
+    # 6. Render main hero header
     render_header(
         title="GraphSupport AI",
         subtitle=(
             "Context-aware customer support engine powered by Neo4j graph intelligence "
             "and LLM reasoning."
         ),
-        phase_name="Phase 5: Context-Aware AI Support Agent",
+        phase_name="Phase 6: Support Operations Dashboard",
     )
 
-    st.markdown(
-        """
-        > **Phase 5 Status**: The context-aware AI support agent is active. Customer inquiries
-        > are grounded in persistent Neo4j graph memory with controlled diagnostic tool execution
-        > and factual validation.
-        """
-    )
-
-    # 7. Render status cards
-    render_status_cards(health)
-
-    st.divider()
-
-    # 8. Render Phase 5 AI Support Chat
-    render_phase5_support_chat(settings)
-
-    st.divider()
-
-    # 9. Render Phase 4 Graph Memory Inspector
-    render_phase4_memory_inspector(settings)
-
-    st.divider()
-
-    # 10. Render Phase 3 Customer Support Workbench
-    render_phase3_data_management(settings)
-
-    st.divider()
-
-    # 9. Render interactive Neo4j database controls
-    render_database_control_panel(settings)
-
-    st.divider()
-
-    # 9. Render architecture details
-    render_architecture_overview()
-
-    st.divider()
-
-    # 10. Render safe configuration inspection
-    render_safe_config_section(settings)
-
-    st.divider()
-
-    # 11. Render phased roadmap
-    render_phase_roadmap()
+    # 7. Route to selected page module
+    if selected_page == "📊 Overview":
+        render_overview_page(settings)
+    elif selected_page == "💬 Support Chat":
+        render_chat_page(settings)
+    elif selected_page == "👥 Customers":
+        render_customers_page(settings)
+    elif selected_page == "📦 Products":
+        render_products_page(settings)
+    elif selected_page == "🎫 Tickets":
+        render_tickets_page(settings)
+    elif selected_page == "🔍 Ticket Details":
+        render_ticket_details_page(settings)
+    elif selected_page == "📜 Conversation History":
+        render_conversations_page(settings)
+    elif selected_page == "🕸️ Graph Explorer":
+        render_graph_explorer_page(settings)
+    elif selected_page == "🩺 System Health":
+        render_system_health_page(settings)
+    elif selected_page == "📈 Evaluation":
+        render_evaluation_page(settings)
+    else:
+        render_overview_page(settings)
 
 
 if __name__ == "__main__":

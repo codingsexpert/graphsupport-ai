@@ -219,4 +219,50 @@ UI Response Display
 - **Strict Read/Write Schemas**: Each tool declares typed input parameters and validated output objects.
 - **No Arbitrary Code**: The model cannot execute Python, shell commands, raw Cypher, or unauthenticated HTTP requests.
 
+---
+
+## 6. Support Dashboard Architecture (Phase 6)
+
+### A. Modular UI Architecture (`graphsupport.ui`)
+Rather than a monolithic `app.py`, the user interface is structured into dedicated, loosely-coupled page renderers under `src/graphsupport/ui/pages/`:
+
+```
+src/graphsupport/ui/
+├── __init__.py                # Package exports for page renderers and NAV_OPTIONS
+├── components.py              # Shared design components (metrics, badges, alerts)
+├── navigation.py              # Sidebar navigation and demo identity selector
+└── pages/
+    ├── __init__.py            # Page exports
+    ├── overview.py            # Overview KPI dashboard and real-time activity
+    ├── chat_page.py           # Context-aware customer support chat interface
+    ├── customers_page.py      # Customer directory, onboarding, and 360 overview
+    ├── products_page.py       # Product catalog and customer-product links
+    ├── tickets_page.py        # Filterable ticket queue and ticket submission
+    ├── ticket_details_page.py # Diagnostic timeline, resolution logger, transitions
+    ├── conversations_page.py  # Session transcript explorer with sender badges
+    ├── graph_explorer_page.py # Interactive vis.js physics graph visualizer
+    ├── system_health_page.py  # Subsystem status, Neo4j check, schema tools
+    └── evaluation_page.py     # Offline benchmark suite and report viewer
+```
+
+### B. Graph Explorer Pipeline
+- **Bounded Cypher Traversal**: Subgraph queries executed through `SupportService.get_subgraph()` enforce node clamping (default 30, maximum 60 nodes) to prevent UI freezes or excessive network payloads.
+- **vis.js Physics Visualization**: Renders an interactive physics-directed graph inside an isolated `components.html` iframe using CDN-hosted vis-network. Nodes are color-coded by entity label:
+  - Customers (`#3b82f6` - Blue)
+  - Products (`#8b5cf6` - Purple)
+  - Tickets (`#f59e0b` - Amber)
+  - Diagnostic Steps (`#06b6d4` - Cyan)
+  - Resolutions (`#10b981` - Emerald)
+- **Zero-Dependency Tabular Fallback**: When HTML component rendering is unsupported, node and edge summary tables provide full visibility into extracted subgraphs.
+
+### C. Offline Evaluation Framework
+- **Deterministic Benchmarking**: `EvaluationRunner` executes 6 automated tests without requiring external network connectivity or paid API tokens:
+  1. Memory Grounding & Missing Flags
+  2. Outcome Fidelity (Failed Step Invariance)
+  3. Tenant Authorization Guards
+  4. Factual Claim Validation
+  5. Prompt Injection Defense Structure
+  6. Retrieval & Context Compilation Latency
+- **Live vs. Mock Execution**: Distinctly reports when running against live Neo4j Aura data versus synthetic fixtures.
+
 

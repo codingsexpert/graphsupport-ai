@@ -215,6 +215,45 @@ class TroubleshootingRepository:
         except Exception as err:
             raise RepositoryError(f"Failed to delete resolution: {err}") from err
 
+    def list_recent_steps(self, limit: int = 10) -> list[TroubleshootingStep]:
+        """List recent troubleshooting steps across tickets."""
+        query = """
+        MATCH (t:SupportTicket)-[:HAS_ATTEMPT]->(s:TroubleshootingStep)
+        RETURN s.id AS id, s.step_number AS step_number, s.action AS action,
+               s.outcome AS outcome, s.notes AS notes, s.executed_at AS executed_at,
+               t.id AS ticket_id, s.previous_step_id AS previous_step_id
+        ORDER BY s.executed_at DESC, s.id ASC
+        LIMIT $limit
+        """
+        steps: list[TroubleshootingStep] = []
+        try:
+            with self.driver_manager.session(database=self.database) as session:
+                result = session.run(query, {"limit": limit})
+                for record in result:
+                    steps.append(self._record_to_step(record))
+            return steps
+        except Exception as err:
+            raise RepositoryError(f"Failed to list recent steps: {err}") from err
+
+    def list_recent_resolutions(self, limit: int = 10) -> list[Resolution]:
+        """List recent verified resolutions across tickets."""
+        query = """
+        MATCH (t:SupportTicket)-[:HAS_RESOLUTION]->(r:Resolution)
+        RETURN r.id AS id, r.summary AS summary, r.resolution_type AS resolution_type,
+               r.verified AS verified, r.created_at AS created_at, t.id AS ticket_id
+        ORDER BY r.created_at DESC, r.id ASC
+        LIMIT $limit
+        """
+        resolutions: list[Resolution] = []
+        try:
+            with self.driver_manager.session(database=self.database) as session:
+                result = session.run(query, {"limit": limit})
+                for record in result:
+                    resolutions.append(self._record_to_resolution(record))
+            return resolutions
+        except Exception as err:
+            raise RepositoryError(f"Failed to list recent resolutions: {err}") from err
+
     @staticmethod
     def _record_to_step(record: Any) -> TroubleshootingStep:
         executed_at_raw = record.get("executed_at")

@@ -57,3 +57,6 @@ minversion = "8.0"
 testpaths = ["tests"]
 pythonpath = ["src"]
 addopts = "-v --strict-markers"
+markers = [
+    "integration: live integration tests against external services",
+]

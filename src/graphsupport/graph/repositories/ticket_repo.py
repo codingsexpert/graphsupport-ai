@@ -291,6 +291,47 @@ class TicketRepository:
         except Exception as err:
             raise RepositoryError(f"Failed to list customer tickets: {err}") from err
 
+    def list_all_tickets(
+        self,
+        status: TicketStatus | None = None,
+        limit: int = 50,
+        skip: int = 0,
+    ) -> list[SupportTicket]:
+        """List all tickets across customers with optional status filtering and pagination."""
+        if limit < 1 or limit > 500:
+            raise ValidationError(f"Limit must be between 1 and 500, got {limit}")
+        if skip < 0:
+            raise ValidationError(f"Skip cannot be negative, got {skip}")
+
+        query = """
+        MATCH (t:SupportTicket)
+        WHERE ($status IS NULL OR t.status = $status)
+        OPTIONAL MATCH (c:Customer)-[:HAS_TICKET]->(t)
+        OPTIONAL MATCH (t)-[:AFFECTS]->(p:Product)
+        OPTIONAL MATCH (i:Issue)-[:TRACKED_BY]->(t)
+        RETURN t.id AS id, t.title AS title, t.description AS description,
+               t.status AS status, t.priority AS priority,
+               t.created_at AS created_at, t.updated_at AS updated_at,
+               c.id AS customer_id, p.id AS product_id, i.id AS issue_id
+        ORDER BY t.created_at DESC, t.id ASC
+        SKIP $skip
+        LIMIT $limit
+        """
+        params = {
+            "status": status.value if status else None,
+            "skip": skip,
+            "limit": limit,
+        }
+        tickets: list[SupportTicket] = []
+        try:
+            with self.driver_manager.session(database=self.database) as session:
+                result = session.run(query, params)
+                for record in result:
+                    tickets.append(self._record_to_ticket(record))
+            return tickets
+        except Exception as err:
+            raise RepositoryError(f"Failed to list all tickets: {err}") from err
+
     def get_ticket_details(self, ticket_id: str) -> TicketDetails | None:
         """Fetch comprehensive ticket graph context including steps and resolutions."""
         ticket = self.get_by_id(ticket_id)
