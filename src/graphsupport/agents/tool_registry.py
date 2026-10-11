@@ -7,6 +7,7 @@ Arbitrary execution, unparameterized Cypher, and cross-customer access are stric
 
 import json
 import logging
+import time
 from dataclasses import dataclass
 from typing import Any
 
@@ -18,6 +19,11 @@ from graphsupport.core.exceptions import (
     EntityNotFoundError,
     GraphSupportError,
     ValidationError,
+)
+from graphsupport.core.security import (
+    redact_sensitive_text,
+    sanitize_text_input,
+    validate_entity_id,
 )
 from graphsupport.graph.models import TicketStatus, TroubleshootingOutcome
 from graphsupport.memory.models import RetrievalLimits
@@ -33,6 +39,8 @@ class ToolResult:
     success: bool
     data: dict[str, Any]
     error: str | None = None
+    duration_ms: float = 0.0
+    correlation_id: str | None = None
 
     def to_json(self) -> str:
         """Serialize data payload into JSON for LLM response consumption."""
@@ -288,8 +296,14 @@ class ToolRegistry:
             ),
         ]
 
-    def execute_tool(self, tool_name: str, arguments: dict[str, Any]) -> ToolResult:
+    def execute_tool(
+        self,
+        tool_name: str,
+        arguments: dict[str, Any],
+        correlation_id: str | None = None,
+    ) -> ToolResult:
         """Validate arguments, check customer ownership, and dispatch tool invocation."""
+        t0 = time.perf_counter()
         dispatch_table = {
             "get_customer_history": self._tool_get_customer_history,
             "get_ticket_status": self._tool_get_ticket_status,
@@ -302,38 +316,79 @@ class ToolRegistry:
 
         handler = dispatch_table.get(tool_name)
         if not handler:
+            dur = round((time.perf_counter() - t0) * 1000, 2)
             return ToolResult(
                 tool_name=tool_name,
                 success=False,
                 data={},
                 error=f"Tool '{tool_name}' is not an approved tool in the ToolRegistry.",
+                duration_ms=dur,
+                correlation_id=correlation_id,
             )
 
         try:
-            return handler(arguments)
+            res = handler(arguments)
+            res.duration_ms = round((time.perf_counter() - t0) * 1000, 2)
+            res.correlation_id = correlation_id
+            return res
         except AuthorizationError as err:
-            logger.warning("Tool authorization violation on '%s': %s", tool_name, err)
+            dur = round((time.perf_counter() - t0) * 1000, 2)
+            clean_err = redact_sensitive_text(str(err))
+            logger.warning("Tool authorization violation on '%s': %s", tool_name, clean_err)
             return ToolResult(
-                tool_name=tool_name, success=False, data={}, error=f"Authorization Error: {err}"
+                tool_name=tool_name,
+                success=False,
+                data={},
+                error=f"Authorization Error: {clean_err}",
+                duration_ms=dur,
+                correlation_id=correlation_id,
             )
         except ValidationError as err:
-            logger.warning("Tool validation error on '%s': %s", tool_name, err)
+            dur = round((time.perf_counter() - t0) * 1000, 2)
+            clean_err = redact_sensitive_text(str(err))
+            logger.warning("Tool validation error on '%s': %s", tool_name, clean_err)
             return ToolResult(
-                tool_name=tool_name, success=False, data={}, error=f"Validation Error: {err}"
+                tool_name=tool_name,
+                success=False,
+                data={},
+                error=f"Validation Error: {clean_err}",
+                duration_ms=dur,
+                correlation_id=correlation_id,
             )
         except EntityNotFoundError as err:
+            dur = round((time.perf_counter() - t0) * 1000, 2)
+            clean_err = redact_sensitive_text(str(err))
             return ToolResult(
-                tool_name=tool_name, success=False, data={}, error=f"Not Found: {err}"
+                tool_name=tool_name,
+                success=False,
+                data={},
+                error=f"Not Found: {clean_err}",
+                duration_ms=dur,
+                correlation_id=correlation_id,
             )
         except GraphSupportError as err:
-            logger.error("Domain failure during tool execution '%s': %s", tool_name, err)
+            dur = round((time.perf_counter() - t0) * 1000, 2)
+            clean_err = redact_sensitive_text(str(err))
+            logger.error("Domain failure during tool execution '%s': %s", tool_name, clean_err)
             return ToolResult(
-                tool_name=tool_name, success=False, data={}, error=f"Operation Failed: {err}"
+                tool_name=tool_name,
+                success=False,
+                data={},
+                error=f"Operation Failed: {clean_err}",
+                duration_ms=dur,
+                correlation_id=correlation_id,
             )
         except Exception as err:
-            logger.exception("Unexpected error executing tool '%s': %s", tool_name, err)
+            dur = round((time.perf_counter() - t0) * 1000, 2)
+            clean_err = redact_sensitive_text(str(err))
+            logger.exception("Unexpected error executing tool '%s': %s", tool_name, clean_err)
             return ToolResult(
-                tool_name=tool_name, success=False, data={}, error=f"Internal Error: {err}"
+                tool_name=tool_name,
+                success=False,
+                data={},
+                error=f"Internal Error: {clean_err}",
+                duration_ms=dur,
+                correlation_id=correlation_id,
             )
 
     # =========================================================================
@@ -342,12 +397,21 @@ class ToolRegistry:
 
     def _tool_get_customer_history(self, args: dict[str, Any]) -> ToolResult:
         validated = GetCustomerHistoryInput(**args)
-        # Force authorized customer ID boundary regardless of any argument
+        pid = (
+            validate_entity_id(validated.product_id, "Product ID") if validated.product_id else None
+        )
+        tid = validate_entity_id(validated.ticket_id, "Ticket ID") if validated.ticket_id else None
+        issue_q = (
+            sanitize_text_input(validated.issue_query, max_chars=200, field_name="Issue query")
+            if validated.issue_query
+            else None
+        )
+
         context = self.service.retrieve_customer_context(
             customer_id=self.authorized_customer_id,
-            product_id=validated.product_id,
-            issue_query=validated.issue_query,
-            ticket_id=validated.ticket_id,
+            product_id=pid,
+            issue_query=issue_q,
+            ticket_id=tid,
             limits=RetrievalLimits(max_tickets=5),
         )
         return ToolResult(
@@ -358,11 +422,11 @@ class ToolRegistry:
 
     def _tool_get_ticket_status(self, args: dict[str, Any]) -> ToolResult:
         validated = GetTicketStatusInput(**args)
-        # Verify ticket ownership first
-        self._verify_ticket_ownership(validated.ticket_id)
-        details = self.service.get_ticket_details(validated.ticket_id)
+        tid = validate_entity_id(validated.ticket_id, "Ticket ID")
+        self._verify_ticket_ownership(tid)
+        details = self.service.get_ticket_details(tid)
         if not details:
-            raise EntityNotFoundError(f"Ticket '{validated.ticket_id}' not found")
+            raise EntityNotFoundError(f"Ticket '{tid}' not found")
 
         return ToolResult(
             tool_name="get_ticket_status",
@@ -389,9 +453,10 @@ class ToolRegistry:
 
     def _tool_get_product_info(self, args: dict[str, Any]) -> ToolResult:
         validated = GetProductInfoInput(**args)
-        product = self.service.get_product(validated.product_id)
+        pid = validate_entity_id(validated.product_id, "Product ID")
+        product = self.service.get_product(pid)
         if not product:
-            raise EntityNotFoundError(f"Product '{validated.product_id}' not found")
+            raise EntityNotFoundError(f"Product '{pid}' not found")
         return ToolResult(
             tool_name="get_product_info",
             success=True,
@@ -406,13 +471,48 @@ class ToolRegistry:
 
     def _tool_create_support_ticket(self, args: dict[str, Any]) -> ToolResult:
         validated = CreateSupportTicketInput(**args)
+        title = sanitize_text_input(validated.title, max_chars=200, field_name="Ticket title")
+        desc = sanitize_text_input(validated.description, max_chars=2000, field_name="Description")
+        pid = (
+            validate_entity_id(validated.product_id, "Product ID") if validated.product_id else None
+        )
+        iid = validate_entity_id(validated.issue_id, "Issue ID") if validated.issue_id else None
+
+        # Deduplication guard: Check if an active ticket with identical title exists
+        existing_tickets = self.service.list_customer_tickets(
+            customer_id=self.authorized_customer_id, limit=10
+        )
+        for t in existing_tickets:
+            if t.status in (TicketStatus.OPEN, TicketStatus.IN_PROGRESS):
+                if t.title.strip().lower() == title.strip().lower():
+                    logger.info(
+                        "Deduplication guard: Reusing existing active ticket %s for customer %s",
+                        t.id,
+                        self.authorized_customer_id,
+                    )
+                    return ToolResult(
+                        tool_name="create_support_ticket",
+                        success=True,
+                        data={
+                            "ticket_id": t.id,
+                            "title": t.title,
+                            "status": t.status.value,
+                            "priority": t.priority,
+                            "created_at": t.created_at.isoformat(),
+                            "note": (
+                                "Existing active ticket found matching title; "
+                                "reused record to prevent duplicates."
+                            ),
+                        },
+                    )
+
         ticket = self.service.open_support_ticket(
             customer_id=self.authorized_customer_id,
-            title=validated.title,
-            description=validated.description,
+            title=title,
+            description=desc,
             priority=validated.priority,
-            product_id=validated.product_id,
-            issue_id=validated.issue_id,
+            product_id=pid,
+            issue_id=iid,
         )
         return ToolResult(
             tool_name="create_support_ticket",
@@ -428,8 +528,8 @@ class ToolRegistry:
 
     def _tool_record_troubleshooting_attempt(self, args: dict[str, Any]) -> ToolResult:
         validated = RecordTroubleshootingAttemptInput(**args)
-        # Check ticket ownership
-        self._verify_ticket_ownership(validated.ticket_id)
+        tid = validate_entity_id(validated.ticket_id, "Ticket ID")
+        self._verify_ticket_ownership(tid)
 
         try:
             outcome_enum = TroubleshootingOutcome(validated.outcome.strip().lower())
@@ -439,19 +539,49 @@ class ToolRegistry:
                 f"Invalid outcome '{validated.outcome}'. Allowed: {allowed}"
             ) from err
 
+        action = sanitize_text_input(validated.action, max_chars=500, field_name="Action")
+        notes = sanitize_text_input(validated.notes, max_chars=1000, field_name="Notes")
+
+        # Deduplication guard: Check if an identical attempt is already recorded
+        details = self.service.get_ticket_details(tid)
+        if details:
+            for existing_step in details.troubleshooting_steps:
+                if (
+                    existing_step.step_number == validated.step_number
+                    and existing_step.action.strip().lower() == action.strip().lower()
+                ):
+                    logger.info(
+                        "Deduplication guard: Step %d '%s' already recorded on ticket %s",
+                        validated.step_number,
+                        action,
+                        tid,
+                    )
+                    return ToolResult(
+                        tool_name="record_troubleshooting_attempt",
+                        success=True,
+                        data={
+                            "step_id": existing_step.id,
+                            "ticket_id": tid,
+                            "step_number": existing_step.step_number,
+                            "action": existing_step.action,
+                            "outcome": existing_step.outcome.value,
+                            "note": "Identical troubleshooting step was already recorded.",
+                        },
+                    )
+
         step = self.service.record_troubleshooting_step(
-            ticket_id=validated.ticket_id,
+            ticket_id=tid,
             step_number=validated.step_number,
-            action=validated.action,
+            action=action,
             outcome=outcome_enum,
-            notes=validated.notes,
+            notes=notes,
         )
         return ToolResult(
             tool_name="record_troubleshooting_attempt",
             success=True,
             data={
                 "step_id": step.id,
-                "ticket_id": validated.ticket_id,
+                "ticket_id": tid,
                 "step_number": step.step_number,
                 "action": step.action,
                 "outcome": step.outcome.value,
@@ -460,7 +590,8 @@ class ToolRegistry:
 
     def _tool_update_ticket_status(self, args: dict[str, Any]) -> ToolResult:
         validated = UpdateTicketStatusInput(**args)
-        self._verify_ticket_ownership(validated.ticket_id)
+        tid = validate_entity_id(validated.ticket_id, "Ticket ID")
+        self._verify_ticket_ownership(tid)
 
         try:
             status_enum = TicketStatus(validated.new_status.strip().lower())
@@ -470,8 +601,20 @@ class ToolRegistry:
                 f"Invalid status '{validated.new_status}'. Allowed: {allowed}"
             ) from err
 
+        details = self.service.get_ticket_details(tid)
+        if details and details.ticket.status == status_enum:
+            return ToolResult(
+                tool_name="update_ticket_status",
+                success=True,
+                data={
+                    "ticket_id": details.ticket.id,
+                    "new_status": details.ticket.status.value,
+                    "note": f"Ticket was already in status '{status_enum.value}'.",
+                },
+            )
+
         updated = self.service.update_ticket_status(
-            ticket_id=validated.ticket_id,
+            ticket_id=tid,
             new_status=status_enum,
         )
         return ToolResult(
@@ -482,40 +625,40 @@ class ToolRegistry:
 
     def _tool_escalate_ticket(self, args: dict[str, Any]) -> ToolResult:
         validated = EscalateTicketInput(**args)
-        self._verify_ticket_ownership(validated.ticket_id)
+        tid = validate_entity_id(validated.ticket_id, "Ticket ID")
+        self._verify_ticket_ownership(tid)
+        reason = sanitize_text_input(validated.reason, max_chars=500, field_name="Reason")
 
         # Set status to in_progress and priority to urgent
-        self.service.update_ticket_status(
-            ticket_id=validated.ticket_id, new_status=TicketStatus.IN_PROGRESS
-        )
+        self.service.update_ticket_status(ticket_id=tid, new_status=TicketStatus.IN_PROGRESS)
 
-        # Record genuine escalation record as a troubleshooting step
         step = self.service.record_troubleshooting_step(
-            ticket_id=validated.ticket_id,
-            step_number=99,  # High sequence for escalation
-            action=f"Escalation Request ({validated.target_tier.upper()}): {validated.reason}",
+            ticket_id=tid,
+            step_number=99,
+            action=f"Escalation Request ({validated.target_tier.upper()}): {reason}",
             outcome=TroubleshootingOutcome.PARTIAL,
-            notes=f"Escalated by AI agent on behalf of customer. Reason: {validated.reason}",
+            notes=f"Escalated by AI agent on behalf of customer. Reason: {reason}",
         )
         return ToolResult(
             tool_name="escalate_ticket",
             success=True,
             data={
-                "ticket_id": validated.ticket_id,
+                "ticket_id": tid,
                 "escalated": True,
                 "target_tier": validated.target_tier,
                 "escalation_step_id": step.id,
-                "reason": validated.reason,
+                "reason": reason,
             },
         )
 
     def _verify_ticket_ownership(self, ticket_id: str) -> None:
         """Verify that the ticket belongs to self.authorized_customer_id."""
-        details = self.service.get_ticket_details(ticket_id)
+        tid = validate_entity_id(ticket_id, "Ticket ID")
+        details = self.service.get_ticket_details(tid)
         if not details:
-            raise EntityNotFoundError(f"Ticket '{ticket_id}' not found")
+            raise EntityNotFoundError(f"Ticket '{tid}' not found")
         if details.customer.id != self.authorized_customer_id:
             raise AuthorizationError(
                 f"Customer '{self.authorized_customer_id}' is not authorized to access "
-                f"ticket '{ticket_id}'"
+                f"ticket '{tid}'"
             )

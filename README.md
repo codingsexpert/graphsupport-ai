@@ -16,7 +16,7 @@ GraphSupport AI is an enterprise customer support platform designed to remember 
 | **Phase 4** | **Graph Retrieval & Memory** | **Completed** | Persistent graph memory, customer context retrieval, deterministic relevance ranking, outcome fidelity, Streamlit Memory Inspector |
 | **Phase 5** | **Context-Aware LLM Agent** | **Completed** | Configurable LLM provider (Gemini, OpenAI, Mock), 7 domain tools, grounded prompt templates, response validator, Streamlit AI Chat |
 | **Phase 6** | **Interactive Support Dashboard** | **Completed** | 10-page operations dashboard, customer 360, ticket lifecycle, interactive vis.js graph explorer, offline evaluation suite |
-| **Phase 7** | **Security Hardening & Production Polish** | *Pending* | Threat modeling, authorization audit, prompt-injection red teaming, reliability testing, final demo readiness |
+| **Phase 7** | **Security Hardening & Production Polish** | **Completed** | Threat modeling, tenant isolation, prompt-injection scanner, tool deduplication, rate limiting, correlation IDs, 138 tests |
 
 ---
 
@@ -251,8 +251,11 @@ Phase 6 provides a professional, operations-grade Streamlit dashboard structured
 
 ### Run Unit and Integration Tests
 ```bash
-# Run all tests (107 passing unit + live integration tests)
+# Run all tests (138 passing unit + live integration tests)
 pytest -v
+
+# Run Phase 7 security and hardening tests
+pytest tests/unit/test_security_hardening.py -v
 
 # Run Phase 6 dashboard unit tests
 pytest tests/unit/test_phase6_dashboard.py -v
@@ -272,26 +275,25 @@ pytest tests/integration/ -v
 
 ---
 
-## 🔒 Security & Authorization Boundaries
+## 🔒 Security Architecture & Hardening Controls (Phase 7)
 
-- **No Raw Cypher from UI**: 100% of UI reads and mutations pass through `SupportService`.
-- **Parameterization**: 100% of Cypher queries use `$params` without string concatenation or f-string interpolation.
-- **Secret Safety**: Passwords, URIs, and API keys are automatically masked by Pydantic Settings and filtered from log outputs.
-- **Tenant Ownership Validation**: Customer-to-ticket ownership is verified before context assembly and before any tool action. Cross-customer manipulation is blocked at application runtime.
-- **Bounded Loops**: Agent tool loops are strictly capped at 4 iterations with maximum context limits.
-- **Untrusted Input Treatment**: User messages and database strings cannot alter system prompt instructions.
-- **Demo Identity Disclaimer**: The customer selector in the navigation bar is a development/demo utility; production deployments require authenticated enterprise identity tokens.
+For full architectural details, see [docs/security.md](file:///Users/MukeshSingh/Desktop/graphsupport-ai/docs/security.md).
 
----
-
-## 🔮 Scope Boundaries & Deferred Features (Phase 7)
-
-Phase 6 completes the professional support dashboard and evaluation suite. The following features are intentionally scheduled for Phase 7:
-- **Security Hardening**: Threat-model review, prompt-injection red teaming, and cross-tenant leak fuzzing.
-- **Enterprise Authentication & RBAC**: Role-based access control (Admin, Agent, Customer) replacing the demo customer selector.
-- **Reliability & Chaos Testing**: Database failure recovery, rate-limiting stress testing, and graceful degradation.
-- **Evaluation Deepening**: LLM-as-a-judge benchmarking on historical real-world support transcripts.
-- **Production Packaging**: Docker containerization, health check endpoints, and deployment automation.
+- **Strict Identifier Validation**: All entity IDs are checked against `^[a-zA-Z0-9_\-\.]{1,128}$` via `validate_entity_id()`, rejecting control characters and injection tokens.
+- **In-Memory Rate Limiting**: `InMemoryRateLimiter` enforces sliding-window rate limiting per customer session to prevent denial-of-service and quota exhaustion.
+- **Prompt Injection Defense-in-Depth**:
+  - `scan_for_prompt_injection()` scans user messages for instruction overrides, persona hijacking, and credential harvesting.
+  - Isolated system prompt formatting ensures user text cannot alter directives.
+  - Output validation fact-checks claims before returning responses.
+- **Tool Deduplication & Safety**:
+  - `create_support_ticket` checks for existing active tickets with identical titles, preventing duplicate storms during retries.
+  - `record_troubleshooting_attempt` avoids duplicate step entries.
+  - Ownership validation ensures cross-customer ticket operations are blocked.
+- **Sanitized Observability**:
+  - Request correlation IDs (`req-*`) track agent workflows across logging and tool executions.
+  - Secret and card scrubbing (`redact_sensitive_text()`) masks sensitive tokens.
+- **Pre-Production Roadmap**:
+  - Before public deployment, enterprise OIDC authentication and distributed Redis rate limiting must replace demo components.
 
 ---
 

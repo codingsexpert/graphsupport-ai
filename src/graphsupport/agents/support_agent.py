@@ -28,6 +28,12 @@ from graphsupport.core.exceptions import (
     LLMError,
     ValidationError,
 )
+from graphsupport.core.rate_limiter import get_rate_limiter
+from graphsupport.core.security import (
+    sanitize_text_input,
+    scan_for_prompt_injection,
+    validate_entity_id,
+)
 from graphsupport.memory.models import CustomerMemoryContext, RetrievalLimits
 
 logger = logging.getLogger("graphsupport.agents.support_agent")
@@ -42,6 +48,8 @@ class ToolExecutionRecord:
     success: bool
     data: dict[str, Any]
     error: str | None = None
+    duration_ms: float = 0.0
+    correlation_id: str | None = None
 
 
 @dataclass
@@ -54,6 +62,8 @@ class AgentResponse:
     memory_context_used: CustomerMemoryContext | None = None
     iterations_used: int = 1
     claims_verified: bool = True
+    correlation_id: str = ""
+    injection_flagged: bool = False
 
 
 class SupportAgent:
@@ -95,30 +105,52 @@ class SupportAgent:
 
         Raises:
             ValidationError: If customer or message inputs are invalid.
+            RateLimitExceededError: If customer request rate threshold is exceeded.
             EntityNotFoundError: If customer does not exist in graph.
             AuthorizationError: If ticket does not belong to customer.
             LLMError: If provider fails or credentials are unconfigured.
         """
-        # 1. Input Validation
-        cid = (customer_id or "").strip()
-        if not cid:
-            raise ValidationError("Customer ID cannot be empty")
-
-        clean_msg = (message or "").strip()
+        # 1. Input Validation and Correlation Tracking
+        req_id = f"req-{uuid.uuid4().hex[:10]}"
+        cid = validate_entity_id(customer_id, "Customer ID")
+        clean_msg = sanitize_text_input(message, max_chars=3000, field_name="Customer message")
         if not clean_msg:
             raise ValidationError("Customer message cannot be empty")
-        if len(clean_msg) > 3000:
-            raise ValidationError("Customer message exceeds maximum length of 3000 characters")
 
-        logger.info(
-            "Agent request for customer=%s (conv=%s, ticket=%s, product=%s)",
-            cid,
-            conversation_id,
-            focused_ticket_id,
-            focused_product_id,
+        tid = (
+            validate_entity_id(focused_ticket_id, "Focused ticket ID")
+            if focused_ticket_id
+            else None
+        )
+        pid = (
+            validate_entity_id(focused_product_id, "Focused product ID")
+            if focused_product_id
+            else None
         )
 
-        # 2. Resolve or create active conversation
+        # 2. Rate Limiting Enforcement
+        get_rate_limiter().enforce_rate_limit(cid)
+
+        # 3. Prompt Injection Heuristic Scan
+        is_injection_flagged, injection_reason = scan_for_prompt_injection(clean_msg)
+        if is_injection_flagged:
+            logger.warning(
+                "[%s] Security scan flagged potential prompt injection for customer=%s: %s",
+                req_id,
+                cid,
+                injection_reason,
+            )
+
+        logger.info(
+            "[%s] Agent request for customer=%s (conv=%s, ticket=%s, product=%s)",
+            req_id,
+            cid,
+            conversation_id,
+            tid,
+            pid,
+        )
+
+        # 4. Resolve or create active conversation
         conv_id = conversation_id.strip() if conversation_id else None
         if not conv_id:
             conv = self.service.start_conversation(
@@ -128,39 +160,39 @@ class SupportAgent:
             )
             conv_id = conv.id
 
-        # 3. Persist incoming customer message first
+        # 5. Persist incoming customer message first
         self.service.add_message(
             conversation_id=conv_id,
             sender_type="customer",
             content=clean_msg,
-            ticket_id=focused_ticket_id,
+            ticket_id=tid,
             authorized_customer_id=cid,
         )
 
-        # 4. Retrieve persistent customer graph memory
+        # 6. Retrieve persistent customer graph memory
         limits = RetrievalLimits(max_tickets=self.max_history_tickets)
         memory_context = self.service.retrieve_customer_context(
             customer_id=cid,
-            product_id=focused_product_id,
-            ticket_id=focused_ticket_id,
+            product_id=pid,
+            ticket_id=tid,
             issue_query=clean_msg,
             limits=limits,
         )
 
-        # 5. Initialize customer-scoped tool registry
+        # 7. Initialize customer-scoped tool registry
         tool_registry = ToolRegistry(
             support_service=self.service,
             authorized_customer_id=cid,
         )
         tool_defs = tool_registry.get_tool_definitions()
 
-        # 6. Assemble prompt messages
+        # 8. Assemble prompt messages
         messages = assemble_agent_messages(
             context=memory_context,
             user_message=clean_msg,
         )
 
-        # 7. Agent reasoning and tool loop
+        # 9. Agent reasoning and tool loop
         tool_executions: list[ToolExecutionRecord] = []
         iteration = 0
         final_text: str | None = None
@@ -192,10 +224,16 @@ class SupportAgent:
                 )
 
                 for tc in resp.tool_calls:
-                    logger.info("Executing agent tool: %s with args: %s", tc.name, tc.arguments)
+                    logger.info(
+                        "[%s] Executing agent tool: %s with args: %s",
+                        req_id,
+                        tc.name,
+                        tc.arguments,
+                    )
                     result: ToolResult = tool_registry.execute_tool(
                         tool_name=tc.name,
                         arguments=tc.arguments,
+                        correlation_id=req_id,
                     )
 
                     record = ToolExecutionRecord(
@@ -204,6 +242,8 @@ class SupportAgent:
                         success=result.success,
                         data=result.data,
                         error=result.error,
+                        duration_ms=result.duration_ms,
+                        correlation_id=req_id,
                     )
                     tool_executions.append(record)
 
@@ -225,7 +265,8 @@ class SupportAgent:
         # Fallback if loop exhausted without terminal response
         if final_text is None:
             logger.warning(
-                "Agent reached maximum tool iterations (%d) for customer %s",
+                "[%s] Agent reached maximum tool iterations (%d) for customer %s",
+                req_id,
                 self.max_tool_iterations,
                 cid,
             )
@@ -234,7 +275,7 @@ class SupportAgent:
                 "processing limit for this turn. Your records have been updated in the database."
             )
 
-        # 8. Output Validation & Sanitization
+        # 10. Output Validation & Sanitization
         raw_tool_dicts = [
             {"tool_name": r.tool_name, "args": r.arguments, "success": r.success}
             for r in tool_executions
@@ -245,12 +286,12 @@ class SupportAgent:
             executed_tool_records=raw_tool_dicts,
         )
 
-        # 9. Persist final assistant response to conversation
+        # 11. Persist final assistant response to conversation
         self.service.add_message(
             conversation_id=conv_id,
             sender_type="assistant",
             content=val_result.sanitized_text,
-            ticket_id=focused_ticket_id,
+            ticket_id=tid,
             authorized_customer_id=cid,
         )
 
@@ -261,4 +302,6 @@ class SupportAgent:
             memory_context_used=memory_context,
             iterations_used=iteration,
             claims_verified=val_result.claims_verified,
+            correlation_id=req_id,
+            injection_flagged=is_injection_flagged,
         )

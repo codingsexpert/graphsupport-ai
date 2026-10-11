@@ -109,3 +109,11 @@ class ToolExecutionError(GraphSupportError):
 
 class ResponseValidationError(GraphSupportError):
     """Raised when agent response fails safety, factual groundings, or schema validation."""
+
+
+class RateLimitExceededError(GraphSupportError):
+    """Raised when client request rate limit or query quota is exceeded."""
+
+
+class SecurityViolationError(GraphSupportError):
+    """Raised when malicious payload, injection attempt, or invalid token is detected."""

@@ -265,4 +265,29 @@ src/graphsupport/ui/
   6. Retrieval & Context Compilation Latency
 - **Live vs. Mock Execution**: Distinctly reports when running against live Neo4j Aura data versus synthetic fixtures.
 
+---
+
+## 7. Security Architecture & Production Hardening (Phase 7)
+
+For full threat modeling and pre-production requirements, refer to [docs/security.md](file:///Users/MukeshSingh/Desktop/graphsupport-ai/docs/security.md).
+
+### A. Input Sanitization & Identifier Verification
+- All externally-supplied IDs (Customer IDs, Ticket IDs, Product IDs) are verified by `validate_entity_id()` against `^[a-zA-Z0-9_\-\.]{1,128}$`.
+- Dangerous characters (`'`, `"`, `;`, `{`, `}`, `(`, `)`, `$`, `/`, `\`, null bytes) are rejected before any database or service operation.
+
+### B. In-Memory Request Rate Limiting
+- `InMemoryRateLimiter` enforces a thread-safe sliding-window rate limit (default 60 requests/minute per customer ID).
+- Prevents resource exhaustion and rapid LLM token depletion.
+
+### C. Defense-in-Depth Prompt Injection Mitigation
+- **Heuristic Scanner**: `scan_for_prompt_injection()` detects instruction override signatures and credential harvesting attempts.
+- **Isolated System Directives**: System directives remain permanently pinned at index 0 as an immutable system prompt.
+- **Sandwich Reminder**: Re-iterates security constraints before user queries are processed.
+- **Fact-Checking Output Validator**: Verifies that any bold ticket creation or resolution claims are supported by executed tool records.
+
+### D. Tool Safety & Deduplication Guards
+- **Tenant Pinning**: `ToolRegistry` enforces that tool actions are locked to `authorized_customer_id`.
+- **Deduplication Safeguards**: `create_support_ticket` reuses existing active tickets with identical titles; `record_troubleshooting_attempt` detects duplicate step numbers and actions to prevent bloated diagnostic history.
+- **Correlation IDs & Execution Metrics**: Tool execution records capture duration (`duration_ms`) and trace correlation IDs (`req-*`).
+
 

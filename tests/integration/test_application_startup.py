@@ -16,6 +16,8 @@ def test_package_modules_importable() -> None:
         "graphsupport.core.exceptions",
         "graphsupport.core.logging_config",
         "graphsupport.core.health",
+        "graphsupport.core.security",
+        "graphsupport.core.rate_limiter",
         "graphsupport.graph",
         "graphsupport.graph.driver",
         "graphsupport.graph.models",

@@ -80,7 +80,7 @@ All unit tests run against in-memory mocks without network dependencies:
 ```bash
 pytest tests/unit/ -v
 ```
-Includes:
+- `test_security_hardening.py`: Input validation, rate limiting, prompt injection defense, tool deduplication, and secret masking.
 - `test_phase6_dashboard.py`: Navigation options, offline evaluation benchmark suite, delegation tests.
 - `test_agent_provider.py`: LLM provider authentication, timeouts, rate limits, model failure handling.
 - `test_agent_tools.py`: Tool registry allowlisting, input validation, customer authorization checks.
