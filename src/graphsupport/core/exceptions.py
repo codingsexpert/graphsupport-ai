@@ -37,6 +37,10 @@ class PhaseNotImplementedError(GraphSupportError):
     """Raised when functionality planned for a future implementation phase is invoked."""
 
 
+class ValidationError(GraphSupportError):
+    """Raised when application or business inputs fail domain validation rules."""
+
+
 # --- Database & Graph Persistence Exceptions ---
 
 
@@ -62,3 +66,15 @@ class RepositoryError(DatabaseError):
 
 class EntityNotFoundError(RepositoryError):
     """Raised when an expected graph entity is not found by ID or lookup key."""
+
+
+class DuplicateEntityError(RepositoryError):
+    """Raised when creating an entity fails due to uniqueness constraint or existing record."""
+
+
+class RelationshipError(RepositoryError):
+    """Raised when creating or traversing graph relationships fails."""
+
+
+class AuthorizationError(GraphSupportError):
+    """Raised when an operation violates customer identity or context boundaries."""

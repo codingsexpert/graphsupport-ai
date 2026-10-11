@@ -76,25 +76,29 @@ pytest -v
 ```
 
 ### Run Unit Tests Only (No Network Access Required)
+All unit tests run against in-memory mocks without network dependencies:
 ```bash
 pytest tests/unit/ -v
 ```
+Includes:
+- `test_phase3_repositories.py`: Parameterized repository tests for Customer, Product, Ticket, Conversation, Troubleshooting.
+- `test_support_service.py`: Business workflow, validation, and authorization boundary tests.
+- `test_graph_models.py`, `test_graph_driver.py`, `test_graph_schema.py`, etc.
 
 ### Run Live Neo4j Integration Tests
-Live tests target your configured Neo4j instance, test connectivity, apply schema, upsert a test customer with prefix `test-phase2-<uuid>`, and delete the test record immediately after:
-
+Live tests target your configured Neo4j instance, test connectivity, and run full end-to-end workflows with isolated prefixes (`test-phase3-*`) and guaranteed cleanup:
 ```bash
-pytest tests/integration/test_neo4j_live.py -v
+pytest tests/integration/ -v
 ```
-*(If Neo4j is unconfigured or unreachable, integration tests skip automatically).*
+*(If Neo4j is unconfigured or unreachable, integration tests skip automatically with clear messaging).*
 
 ---
 
-## 5. Explicit Schema Initialization
+## 5. Schema Initialization and Persistence Verification
 
-Schema constraints and indexes are not automatically applied at startup to prevent unintended modifications. To explicitly initialize the graph schema:
+Schema constraints and indexes are idempotent and use `IF NOT EXISTS` clauses:
 
-### Via Python Script / Shell
+### Via Python
 ```python
 from graphsupport.config import get_settings
 from graphsupport.graph.driver import get_driver_manager
@@ -103,13 +107,14 @@ from graphsupport.graph.schema import initialize_schema
 settings = get_settings()
 dm = get_driver_manager(settings=settings)
 report = initialize_schema(dm.get_driver(), database=settings.neo4j_database)
-print(f"Applied {report.succeeded}/{report.total} statements.")
+print(f"Applied {report.succeeded}/{report.total} schema statements.")
 ```
 
 ### Via Streamlit UI
 1. Launch `streamlit run app.py`.
-2. Locate the **Neo4j Database Operations (Phase 2)** control panel.
+2. Locate the **Neo4j Database Operations** control panel.
 3. Click **⚡ Initialize Graph Schema (Idempotent)**.
+4. Interact with the **Phase 3: Persistent Customer Support Workbench** across Customers, Products, Tickets, Conversations, and Troubleshooting.
 
 ---
 

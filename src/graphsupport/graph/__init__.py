@@ -7,17 +7,25 @@ from graphsupport.graph.driver import (
 )
 from graphsupport.graph.models import (
     Conversation,
+    ConversationDetails,
     Customer,
     Issue,
     Message,
     Product,
     Resolution,
     SupportTicket,
+    TicketDetails,
     TicketStatus,
     TroubleshootingOutcome,
     TroubleshootingStep,
 )
-from graphsupport.graph.repository import CustomerRepository
+from graphsupport.graph.repositories import (
+    ConversationRepository,
+    CustomerRepository,
+    ProductRepository,
+    TicketRepository,
+    TroubleshootingRepository,
+)
 from graphsupport.graph.schema import (
     SchemaReport,
     StatementResult,
@@ -39,7 +47,13 @@ __all__ = [
     "Resolution",
     "TicketStatus",
     "TroubleshootingOutcome",
+    "TicketDetails",
+    "ConversationDetails",
     "CustomerRepository",
+    "ProductRepository",
+    "TicketRepository",
+    "ConversationRepository",
+    "TroubleshootingRepository",
     "initialize_schema",
     "inspect_schema",
     "SchemaReport",

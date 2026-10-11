@@ -2,7 +2,7 @@
 
 > **Context-Aware Customer Support Agent Powered by Neo4j Knowledge Graphs & LLM Reasoning**
 
-GraphSupport AI is an enterprise customer support platform designed to remember customers, devices, tickets, troubleshooting attempts, and verified resolutions across sessions using a connected Neo4j knowledge graph.
+GraphSupport AI is an enterprise customer support platform designed to remember customers, products, tickets, troubleshooting attempts, conversations, and verified resolutions across sessions using a connected Neo4j knowledge graph.
 
 ---
 
@@ -12,38 +12,71 @@ GraphSupport AI is an enterprise customer support platform designed to remember 
 |---|---|---|---|
 | **Phase 1** | **Professional Foundation** | **Completed** | Modular Python package, typed configuration, logging, health check, UI scaffold, automated tests |
 | **Phase 2** | **Neo4j Schema & Storage** | **Completed** | Neo4j driver connection pooling, graph models, uniqueness constraints, indexes, customer repository |
-| **Phase 3** | Knowledge & Ticket Ingestion | *Upcoming* | Customer and ticket data pipelines, historical troubleshooting ingestion |
-| **Phase 4** | Graph Retrieval & Algorithms | *Pending* | Multi-hop traversal, subgraph extraction, shortest-path troubleshooting |
-| **Phase 5** | Context-Aware LLM Agent | *Pending* | LLM reasoning engine, prompt orchestration, cross-session memory |
-| **Phase 6** | Interactive Support UI | *Pending* | Interactive Streamlit portal, ticket manager, graph visualizer |
+| **Phase 3** | **Persistent Customer Support Data Layer** | **Completed** | Persistent Customers, Products, Issues, Tickets, Conversations, Messages, Attempts, Resolutions, Service layer, Streamlit Workbench |
+| **Phase 4** | **Graph Retrieval & Memory** | *Pending* | Persistent graph memory, customer history retrieval, ticket-context retrieval, relevance ranking |
+| **Phase 5** | **Context-Aware LLM Agent** | *Pending* | LLM reasoning engine, prompt orchestration, cross-session memory |
+| **Phase 6** | **Interactive Support UI** | *Pending* | Interactive Streamlit portal, chat UI, graph visualizer |
 
 ---
 
-## 🕸️ Graph Model Architecture (Phase 2)
+## 🕸️ Graph Data Architecture (Phase 3)
 
 ### Node Entities
-- `Customer`: Unique customer identity (`id` UUID, `email` UNIQUE, `name`, `tier`).
-- `Product`: Catalog products and hardware devices (`id` UUID, `name`, `sku` INDEXED).
-- `Issue`: Canonical defects and symptom classification (`id` UUID, `title`, `severity`).
-- `SupportTicket`: Customer support tickets (`id` UUID, `title`, `status` INDEXED, `priority`).
-- `Conversation`: Support session context (`id` UUID, `session_id`, `channel`).
-- `Message`: Transcript entry (`id` UUID, `sender_type`, `content`, `timestamp`).
-- `TroubleshootingStep`: Diagnostic actions (`id` UUID, `step_number`, `action`, `outcome`).
-- `Resolution`: Verified solutions (`id` UUID, `summary`, `resolution_type`, `verified`).
+- `Customer`: Unique customer identity (`id` UUID, `email` UNIQUE, `name`, `tier`, `created_at`, `metadata`).
+- `Product`: Catalog products and hardware devices (`id` UUID, `name`, `sku` INDEXED, `category`, `version`).
+- `Issue`: Canonical defects and symptom classification (`id` UUID, `title`, `description`, `category`, `severity`).
+- `SupportTicket`: Customer support tickets (`id` UUID, `title`, `status` INDEXED, `priority`, `created_at`, `updated_at`).
+- `Conversation`: Support session context (`id` UUID, `session_id`, `channel`, `started_at`, `status`).
+- `Message`: Transcript entry (`id` UUID, `sender_type`, `content`, `sequence_number`, `timestamp`).
+- `TroubleshootingStep`: Diagnostic actions (`id` UUID, `step_number`, `action`, `outcome`, `notes`, `executed_at`).
+- `Resolution`: Verified solutions (`id` UUID, `summary`, `resolution_type`, `verified`, `created_at`).
 
 ### Graph Relationships
 ```
-(Customer)-[:USES]->(Product)
-(Customer)-[:HAS_TICKET]->(SupportTicket)
-(Product)-[:HAS_ISSUE]->(Issue)
-(Issue)-[:TRACKED_BY]->(SupportTicket)
-(SupportTicket)-[:HAS_RESOLUTION]->(Resolution)
-(SupportTicket)-[:HAS_ATTEMPT]->(TroubleshootingStep)
-(Customer)-[:HAS_CONVERSATION]->(Conversation)
-(Conversation)-[:CONTAINS]->(Message)
-(Message)-[:ABOUT]->(SupportTicket)
-(TroubleshootingStep)-[:FOLLOWED_BY]->(TroubleshootingStep)
+(:Customer)-[:USES]->(:Product)
+(:Customer)-[:HAS_TICKET]->(:SupportTicket)
+(:Product)-[:HAS_ISSUE]->(:Issue)
+(:Issue)-[:TRACKED_BY]->(:SupportTicket)
+(:SupportTicket)-[:AFFECTS]->(:Product)
+(:SupportTicket)-[:HAS_RESOLUTION]->(:Resolution)
+(:SupportTicket)-[:HAS_ATTEMPT]->(:TroubleshootingStep)
+(:TroubleshootingStep)-[:FOLLOWED_BY]->(:TroubleshootingStep)
+(:Customer)-[:HAS_CONVERSATION]->(:Conversation)
+(:Conversation)-[:CONTAINS]->(:Message)
+(:Message)-[:ABOUT]->(:SupportTicket)
 ```
+
+---
+
+## 🛠️ Phase 3 Supported Operations
+
+### 1. Customer Persistence
+- **Create**: Create customer with stable application-generated ID. Duplicate IDs or emails are rejected (`DuplicateEntityError`).
+- **Upsert**: Idempotent update without resetting unmodified properties.
+- **Update**: Update explicitly permitted fields (`name`, `tier`, `metadata`) while preserving identity and email.
+- **Retrieve & List**: Fetch by ID, email, or paginated deterministic listing.
+
+### 2. Product Persistence & Linking
+- **Upsert**: Idempotent product creation with SKU indexing.
+- **Link**: Link customer to product via `(:Customer)-[:USES]->(:Product)` with idempotent relationship semantics.
+- **Retrieve**: List products and query customer product portfolios.
+
+### 3. Support Tickets and Issues
+- **Issue Ingestion**: Create known defects linked to products via `(:Product)-[:HAS_ISSUE]->(:Issue)`.
+- **Atomic Ticket Creation**: Create support ticket atomically linked to `(:Customer)-[:HAS_TICKET]->(:SupportTicket)`, `(:SupportTicket)-[:AFFECTS]->(:Product)`, and optional `(:Issue)-[:TRACKED_BY]->(:SupportTicket)`.
+- **Status Lifecycle**: Transition ticket status (`open`, `in_progress`, `resolved`, `closed`).
+- **Context Inspection**: Traversal retrieving customer, product, issue, troubleshooting steps, and resolutions in one call.
+
+### 4. Conversations and Messages
+- **Session Tracking**: Create conversation linked to customer `(:Customer)-[:HAS_CONVERSATION]->(:Conversation)`.
+- **Deterministic Ordering**: Append messages with auto-incrementing sequence numbers and timestamps (`ORDER BY sequence_number ASC, timestamp ASC, id ASC`).
+- **Ticket Linkage**: Support linking messages to tickets via `(:Message)-[:ABOUT]->(:SupportTicket)`.
+- **Identity Boundary**: Verifies customer authorization context before message addition or transcript retrieval.
+
+### 5. Troubleshooting Attempts and Resolutions
+- **Step Persistence**: Record attempts linked via `(:SupportTicket)-[:HAS_ATTEMPT]->(:TroubleshootingStep)`.
+- **Follow-up Chaining**: Connect sequential attempts via `(:TroubleshootingStep)-[:FOLLOWED_BY]->(:TroubleshootingStep)` within the same ticket context.
+- **Resolution Persistence**: Idempotently record resolutions via `(:SupportTicket)-[:HAS_RESOLUTION]->(:Resolution)`.
 
 ---
 
@@ -92,84 +125,40 @@ python scripts/check_environment.py
 ```bash
 streamlit run app.py
 ```
-Open your browser at `http://localhost:8501` to view the Phase 2 system status and database control panel.
+Open your browser at `http://localhost:8501` to access the Phase 3 Customer Support Workbench.
 
 ---
 
 ## 🧪 Testing and Quality Assurance
 
-### Run All Automated Tests (Unit + Integration)
+### Run Unit and Integration Tests
 ```bash
+# Run all tests (unit + live integration)
 pytest -v
-```
 
-### Run Unit Tests Only (Mocks Only, Zero Network Calls)
-```bash
+# Run unit tests only (fast, completely mocked)
 pytest tests/unit/ -v
+
+# Run live Neo4j integration tests
+pytest tests/integration/ -v
 ```
 
-### Run Linter and Formatter
+### Code Style & Formatting
 ```bash
-# Check code style and rules
 ruff check .
-
-# Verify code formatting
 ruff format --check .
 ```
 
 ---
 
-## 📂 Project Structure
+## 🔒 Security & Authorization Boundaries
 
-```
-graphsupport-ai/
-  app.py                         # Streamlit application entrypoint
-  README.md                      # Project documentation and quickstart
-  pyproject.toml                 # Package metadata and tool configurations
-  requirements.txt               # Pinned runtime dependencies
-  requirements-dev.txt           # Development and testing dependencies
-  .env.example                   # Non-sensitive configuration template
-  .gitignore                     # Git ignore rules for virtualenvs, caches, secrets
-  .python-version                # Pinned Python version (3.12)
-  src/
-    graphsupport/
-      __init__.py
-      config/                    # Typed Pydantic Settings & validation
-        __init__.py
-        settings.py
-      core/                      # Core foundation components
-        __init__.py
-        exceptions.py            # Centralized exception hierarchy (incl. DatabaseError)
-        logging_config.py        # Structured logging with secret sanitization
-        health.py                # Health inspection & reachability reporting
-      graph/                     # Neo4j graph persistence & models (Phase 2)
-        __init__.py
-        models.py                # Pydantic graph models & enums
-        driver.py                # Safe Neo4j connection pooling & TLS manager
-        schema.py                # Idempotent schema constraints & index DDL
-        repository.py            # Parameterized Cypher customer repository
-        queries/
-          schema.cypher          # Readable Cypher schema definition file
-      ui/                        # Streamlit UI design system & components
-        __init__.py
-        navigation.py            # Sidebar and navigation controls
-        components.py            # Reusable UI cards, metrics, and DB control panel
-        styles.py                # Custom modern CSS styling
-  tests/
-    unit/
-      test_settings.py           # Configuration tests
-      test_health.py             # Health readiness tests
-      test_logging_config.py     # Logging formatting tests
-      test_graph_models.py       # Domain entity models & enum tests
-      test_graph_driver.py       # Driver connection pooling & error tests
-      test_graph_schema.py       # Schema DDL initialization tests
-      test_graph_repository.py   # Customer repository CRUD tests
-    integration/
-      test_application_startup.py# Startup & import integration tests
-      test_neo4j_live.py         # Live AuraDB connectivity & isolated CRUD tests
-  docs/
-    architecture.md              # System design and component boundaries
-    development.md               # Developer setup and troubleshooting guide
-  scripts/
-    check_environment.py         # Automated local environment diagnostic tool
-```
+- **Parameterization**: 100% of Cypher queries use `$params` without string concatenation or f-string interpolation.
+- **Secret Safety**: Passwords, URIs, and tokens are automatically masked by Pydantic Settings and filtered from log outputs.
+- **Demo Identity Boundary**: Customer ownership checks are verified in the application layer. Full enterprise authentication (OAuth2/OIDC) is scheduled for subsequent phases.
+
+---
+
+## 📄 License
+
+Proprietary — Internal Development.

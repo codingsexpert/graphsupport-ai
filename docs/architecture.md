@@ -18,9 +18,15 @@ GraphSupport AI bridges this gap by persisting a connected property graph in **N
                                            |
                                            v
 +-----------------------------------------------------------------------------------+
+|                   Application Service Layer (graphsupport.application)            |
+|   - SupportService: Validation, Workflows, Authorization Boundary Guards          |
++------------------------------------------+----------------------------------------+
+                                           |
+                                           v
++-----------------------------------------------------------------------------------+
 |                      Graph Persistence Layer (graphsupport.graph)                 |
-|   - Driver Manager (Pooling/TLS) - Schema Migrations - Customer Repository        |
-|   - Domain Models (Customer, Product, Issue, Ticket, Step, Resolution)            |
+|   - Repositories: Customer, Product, Ticket, Conversation, Troubleshooting        |
+|   - Driver Manager (Pooling/TLS) - Schema Constraints - Idempotent Cypher         |
 +------------------------------------------+----------------------------------------+
                                            |
                                            v
@@ -36,7 +42,7 @@ GraphSupport AI bridges this gap by persisting a connected property graph in **N
 +------------------------------------------+----------------------------------------+
                                            |
          +---------------------------------+---------------------------------+
-         | (Operational in Phase 2)                                          | (Reserved for Phase 5)
+         | (Operational in Phase 3)                                          | (Reserved for Phase 5)
          v                                                                   v
 +----------------------------------+               +----------------------------------+
 |      Neo4j Graph Database        |               |      LLM Reasoning Engine        |
@@ -47,7 +53,7 @@ GraphSupport AI bridges this gap by persisting a connected property graph in **N
 
 ---
 
-## 2. Graph Schema & Domain Model (Phase 2)
+## 2. Graph Schema & Domain Model (Phase 3)
 
 ### A. Graph Nodes
 All core entities employ durable application-generated UUID4 identifiers as primary keys:
@@ -57,25 +63,26 @@ All core entities employ durable application-generated UUID4 identifiers as prim
 - `Issue` (`:Issue`): `id` (UUID, UNIQUE), `title`, `description`, `category`, `severity`, `created_at`.
 - `SupportTicket` (`:SupportTicket`): `id` (UUID, UNIQUE), `title`, `description`, `status` (enum, INDEXED), `priority`, `created_at`, `updated_at`.
 - `Conversation` (`:Conversation`): `id` (UUID, UNIQUE), `session_id`, `channel`, `started_at`, `status`.
-- `Message` (`:Message`): `id` (UUID, UNIQUE), `sender_type`, `content`, `timestamp`.
-- `TroubleshootingStep` (`:TroubleshootingStep`): `id` (UUID, UNIQUE), `step_number`, `action`, `outcome` (enum), `notes`, `executed_at`.
+- `Message` (`:Message`): `id` (UUID, UNIQUE), `sender_type`, `content`, `sequence_number`, `timestamp`.
+- `TroubleshootingStep` (`:TroubleshootingStep`): `id` (UUID, UNIQUE), `step_number`, `action`, `outcome` (enum), `notes`, `executed_at`, `previous_step_id`.
 - `Resolution` (`:Resolution`): `id` (UUID, UNIQUE), `summary`, `resolution_type`, `verified`, `created_at`.
 
 ### B. Graph Relationships
 ```
-(Customer)-[:USES]->(Product)
-(Customer)-[:HAS_TICKET]->(SupportTicket)
-(Product)-[:HAS_ISSUE]->(Issue)
-(Issue)-[:TRACKED_BY]->(SupportTicket)
-(SupportTicket)-[:HAS_RESOLUTION]->(Resolution)
-(SupportTicket)-[:HAS_ATTEMPT]->(TroubleshootingStep)
-(Customer)-[:HAS_CONVERSATION]->(Conversation)
-(Conversation)-[:CONTAINS]->(Message)
-(Message)-[:ABOUT]->(SupportTicket)
-(TroubleshootingStep)-[:FOLLOWED_BY]->(TroubleshootingStep)
+(:Customer)-[:USES]->(:Product)
+(:Customer)-[:HAS_TICKET]->(:SupportTicket)
+(:Product)-[:HAS_ISSUE]->(:Issue)
+(:Issue)-[:TRACKED_BY]->(:SupportTicket)
+(:SupportTicket)-[:AFFECTS]->(:Product)
+(:SupportTicket)-[:HAS_RESOLUTION]->(:Resolution)
+(:SupportTicket)-[:HAS_ATTEMPT]->(:TroubleshootingStep)
+(:TroubleshootingStep)-[:FOLLOWED_BY]->(:TroubleshootingStep)
+(:Customer)-[:HAS_CONVERSATION]->(:Conversation)
+(:Conversation)-[:CONTAINS]->(:Message)
+(:Message)-[:ABOUT]->(:SupportTicket)
 ```
 
-### C. Documented Enums
+### C. Domain Enums
 - `TicketStatus`: `open`, `in_progress`, `resolved`, `closed`.
 - `TroubleshootingOutcome`: `success`, `failed`, `partial`, `unknown`.
 
@@ -88,3 +95,20 @@ All core entities employ durable application-generated UUID4 identifiers as prim
 3. **Secret Isolation**: `neo4j_password` is encapsulated as `SecretStr`. Passwords and credentials are never emitted in exceptions, logs, or UI elements.
 4. **Parameterized Cypher**: All repository operations strictly use query parameters (`$id`, `$email`, etc.). String interpolation for Cypher queries is strictly prohibited.
 5. **Idempotent Schema Application**: All DDL statements utilize `IF NOT EXISTS` semantics, making schema initialization safe to execute repeatedly without dropping or modifying existing data.
+
+---
+
+## 4. Application & Repository Layer (Phase 3)
+
+### A. Modular Repositories (`graphsupport.graph.repositories`)
+- **`CustomerRepository`**: Handles customer creation, unique constraint validation, safe field updates, and deterministic paginated retrieval.
+- **`ProductRepository`**: Manages product catalog upserts and idempotent customer usage linking via `(:Customer)-[:USES]->(:Product)`.
+- **`TicketRepository`**: Coordinates atomic creation of tickets linked to customers, affected products, and tracked issues. Provides multi-hop ticket detail graph traversal.
+- **`ConversationRepository`**: Appends sequential messages with tie-breaking ordering (`ORDER BY sequence_number ASC, timestamp ASC, id ASC`) and optional ticket context links (`[:ABOUT]`).
+- **`TroubleshootingRepository`**: Records ordered troubleshooting attempts, validates ticket context for chained `[:FOLLOWED_BY]` edges, and persists verified resolutions.
+
+### B. Application Coordinator (`graphsupport.application.SupportService`)
+- Validates all business inputs prior to persistence.
+- Enforces customer context and authorization boundaries across conversations and tickets.
+- Translates database-level constraint violations into structured domain exceptions (`DuplicateEntityError`, `EntityNotFoundError`, `ValidationError`).
+- Ensures non-destructive updates so customer identity cannot be accidentally replaced.

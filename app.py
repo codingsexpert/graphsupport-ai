@@ -13,6 +13,7 @@ from graphsupport.ui import (
     render_architecture_overview,
     render_database_control_panel,
     render_header,
+    render_phase3_data_management,
     render_phase_roadmap,
     render_safe_config_section,
     render_sidebar,
@@ -28,7 +29,7 @@ def main() -> None:
 
     # 2. Configure Streamlit page layout
     st.set_page_config(
-        page_title=f"{settings.app_name} - Graph Foundation",
+        page_title=f"{settings.app_name} - Customer Support Data Layer",
         page_icon="🕸️",
         layout="wide",
         initial_sidebar_state="expanded",
@@ -50,14 +51,14 @@ def main() -> None:
             "Context-aware customer support engine powered by Neo4j graph intelligence "
             "and cross-session memory."
         ),
-        phase_name="Phase 2: Neo4j Schema & Storage",
+        phase_name="Phase 3: Persistent Support Data Layer",
     )
 
     st.markdown(
         """
-        > **Phase 2 Status**: The Neo4j graph schema, entity models, connection pooling,
-        > and customer storage repository are operational. Live connectivity and schema constraints
-        > can be verified below. LLM reasoning agent integration is scheduled for **Phase 5**.
+        > **Phase 3 Status**: The persistent customer support data layer is active. Customers,
+        > products, issues, tickets, conversations, troubleshooting steps, and resolutions are
+        > securely stored in Neo4j with full graph relationship integrity.
         """
     )
 
@@ -66,7 +67,12 @@ def main() -> None:
 
     st.divider()
 
-    # 8. Render interactive Neo4j database controls
+    # 8. Render Phase 3 Customer Support Workbench
+    render_phase3_data_management(settings)
+
+    st.divider()
+
+    # 9. Render interactive Neo4j database controls
     render_database_control_panel(settings)
 
     st.divider()
