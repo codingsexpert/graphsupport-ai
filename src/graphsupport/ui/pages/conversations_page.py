@@ -53,10 +53,10 @@ def render_conversations_page(settings: Settings) -> None:
         st.info("No support conversations found on record.")
         return
 
-    conv_options = {
-        f"Session {c.session_id} ({c.started_at.strftime('%Y-%m-%d %H:%M')})": c.id
-        for c in conversations
-    }
+    conv_options = {}
+    for c in conversations:
+        start_str = c.started_at.strftime("%Y-%m-%d %H:%M") if c.started_at else "Recent"
+        conv_options[f"Session {c.session_id} ({start_str})"] = c.id
 
     sel_conv_label = st.selectbox(
         "Select Conversation to View Transcript",
@@ -73,7 +73,12 @@ def render_conversations_page(settings: Settings) -> None:
             m_c1.markdown(f"**Conversation ID**: `{sel_conv.id}`")
             m_c2.markdown(f"**Session**: `{sel_conv.session_id}`")
             m_c3.markdown(f"**Customer**: `{sel_conv.customer_id}`")
-            m_c4.markdown(f"**Started**: {sel_conv.started_at.strftime('%Y-%m-%d %H:%M UTC')}")
+            st_time = (
+                sel_conv.started_at.strftime("%Y-%m-%d %H:%M UTC")
+                if sel_conv.started_at
+                else "Recent"
+            )
+            m_c4.markdown(f"**Started**: {st_time}")
 
     st.divider()
 

@@ -91,7 +91,9 @@ def render_tickets_page(settings: Settings) -> None:
                         )
                     with row_c2:
                         st.markdown(f"**Status**: `{status_str}`")
-                        upd_time = t.updated_at.strftime("%Y-%m-%d %H:%M")
+                        upd_time = (
+                            t.updated_at.strftime("%Y-%m-%d %H:%M") if t.updated_at else "Recently"
+                        )
                         st.caption(f"Priority: `{t.priority.upper()}` | Updated: {upd_time}")
                     with row_c3:
                         if st.button("Details", key=f"btn_det_{t.id}", use_container_width=True):

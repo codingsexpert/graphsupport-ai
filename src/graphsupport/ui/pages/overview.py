@@ -180,7 +180,9 @@ def render_overview_page(settings: Settings) -> None:
                 outcome_text = s.outcome.value.upper()
                 with st.container(border=True):
                     st.markdown(f"**Step {s.step_number}: {s.action}** — `{outcome_text}`")
-                    time_str = s.executed_at.strftime("%Y-%m-%d %H:%M UTC")
+                    time_str = (
+                        s.executed_at.strftime("%Y-%m-%d %H:%M UTC") if s.executed_at else "Recent"
+                    )
                     st.caption(f"Ticket ID: `{s.ticket_id}` | Time: {time_str}")
                     if s.notes:
                         st.caption(f"Notes: {s.notes}")
@@ -196,5 +198,5 @@ def render_overview_page(settings: Settings) -> None:
         for r in recent_res:
             with st.container(border=True):
                 st.markdown(f"**Verified Fix**: {r.summary}")
-                r_date = r.created_at.strftime("%Y-%m-%d")
+                r_date = r.created_at.strftime("%Y-%m-%d") if r.created_at else "Recent"
                 st.caption(f"Ticket: `{r.ticket_id}` | Type: {r.resolution_type} | {r_date}")

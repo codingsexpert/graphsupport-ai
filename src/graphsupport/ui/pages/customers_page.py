@@ -152,7 +152,9 @@ def render_customers_page(settings: Settings) -> None:
                     st.info("No conversations on record.")
                 else:
                     for cv in convs:
-                        c_date = cv.started_at.strftime("%Y-%m-%d %H:%M")
+                        c_date = (
+                            cv.started_at.strftime("%Y-%m-%d %H:%M") if cv.started_at else "Recent"
+                        )
                         st.markdown(
                             f"- **Session `{cv.session_id}`** (ID: `{cv.id}`, Started: {c_date})"
                         )

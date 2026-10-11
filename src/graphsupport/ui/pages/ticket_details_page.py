@@ -86,8 +86,8 @@ def render_ticket_details_page(settings: Settings) -> None:
         prio_val = ticket.priority.upper()
         st.caption(f"Ticket ID: `{ticket.id}` | Priority: `{prio_val}` | Status: `{stat_val}`")
         st.markdown(f"**Description**: {ticket.description}")
-        c_time = ticket.created_at.strftime("%Y-%m-%d %H:%M")
-        u_time = ticket.updated_at.strftime("%Y-%m-%d %H:%M")
+        c_time = ticket.created_at.strftime("%Y-%m-%d %H:%M") if ticket.created_at else "N/A"
+        u_time = ticket.updated_at.strftime("%Y-%m-%d %H:%M") if ticket.updated_at else c_time
         st.caption(f"Created: {c_time} UTC | Updated: {u_time} UTC")
 
     # Connected Graph Entities
