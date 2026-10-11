@@ -41,6 +41,7 @@ class HealthStatus:
     timestamp: str
     neo4j: ServiceReadiness
     llm: ServiceReadiness
+    langsmith: ServiceReadiness | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Convert status to a serializable dictionary safe for logging and UI display."""
@@ -112,6 +113,18 @@ def check_health(
         reachability="not_configured" if not app_settings.is_llm_configured else "not_checked",
     )
 
+    langsmith_readiness = ServiceReadiness(
+        name="LangSmith Observability",
+        target_phase="Observability",
+        configured=app_settings.is_langsmith_configured,
+        status_message=(
+            f"Project '{app_settings.langsmith_project}' active (tracing enabled)"
+            if app_settings.is_langsmith_configured
+            else "Observability disabled or API key unset (zero overhead offline mode)"
+        ),
+        reachability="configured" if app_settings.is_langsmith_configured else "disabled",
+    )
+
     return HealthStatus(
         status="healthy",
         app_name=app_settings.app_name,
@@ -123,4 +136,5 @@ def check_health(
         timestamp=datetime.now(UTC).isoformat(),
         neo4j=neo4j_readiness,
         llm=llm_readiness,
+        langsmith=langsmith_readiness,
     )

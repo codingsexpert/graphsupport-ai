@@ -324,4 +324,28 @@ The evaluation runner assesses 9 critical system vectors deterministically:
 ### C. Hackathon Demo Seeding Architecture (`graphsupport.application.demo_seed`)
 Provides deterministic seeding of Sarah Chen (`demo-cust-sarah`), SmartMesh Gateway (`demo-prod-gateway`), Ticket #101 (`demo-tkt-101`), and Conversation 1 with failed password reset attempt. Features one-click UI setup and safe scoped reset (`MATCH (n) WHERE n.id STARTS WITH 'demo-' DETACH DELETE n`).
 
+---
+
+## 9. Sarvam AI Provider & LangSmith Observability Integration
+
+### A. Sarvam AI Provider (`graphsupport.agents.provider.SarvamAIProvider`)
+Sarvam AI brings frontier Indian language and conversational capabilities to GraphSupport AI:
+- **API Transport**: RESTful HTTPS transport targeting `https://api.sarvam.ai/v1/chat/completions`.
+- **Dual Header Authentication**: Passes both `api-subscription-key` and `Authorization: Bearer <KEY>` headers for universal gateway compatibility.
+- **Payload Schema**: OpenAI-compatible chat messages (`system`, `user`, `assistant`, `tool`), parameters (`temperature`, `max_tokens`), and tool definitions (`tools`, `tool_choice`).
+- **Resilient Error Mapping**:
+  - `401 / 403` ➔ `LLMAuthenticationError` (actionable guidance without secret logging)
+  - `429` ➔ `LLMRateLimitError` (automatic backoff trigger)
+  - `Timeout` ➔ `LLMTimeoutError` (configurable per-call HTTP timeout)
+  - `5xx` ➔ `LLMError` (graceful failure with clean UI reporting)
+
+### B. LangSmith Observability Pipeline (`graphsupport.core.tracing`)
+LangSmith provides full visibility into agent reasoning, tool selection, and model latency:
+- **Zero-Overhead Fail-Safe Design**: Operates as a transparent no-op when `LANGSMITH_TRACING=false` or credentials are unset. Local unit tests and offline workflows remain 100% network-independent.
+- **Hierarchical Run Tree**:
+  - **Root Span (`graphsupport.agent_turn`, type: `chain`)**: Captures customer ID, sanitized user query, active ticket, conversation ID, total turn latency, and iterations count.
+  - **Child Span (`llm:<provider>:<model>`, type: `llm`)**: Captures prompt messages count, tool schema definitions, model finish reason, and token usage statistics.
+  - **Child Span (`tool:<tool_name>`, type: `tool`)**: Captures tool parameters, execution duration in milliseconds, correlation ID, and execution status (`success`).
+- **Privacy & Sanitization**: PII, credit card patterns, and sensitive database credentials are automatically redacted before traces are dispatched to the LangSmith cloud backend.
+
 

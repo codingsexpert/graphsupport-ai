@@ -23,6 +23,7 @@ from graphsupport.core.exceptions import (
     LLMRateLimitError,
     LLMTimeoutError,
 )
+from graphsupport.core.tracing import trace_llm_generation
 
 logger = logging.getLogger("graphsupport.agents.provider")
 
@@ -428,6 +429,171 @@ class OpenAIProvider(LLMProvider):
 
 
 # =============================================================================
+# Sarvam AI Provider Implementation (Indian LLM & Multilingual)
+# =============================================================================
+
+
+class SarvamAIProvider(LLMProvider):
+    """Client for Sarvam AI Chat Completions API.
+
+    Supports Sarvam's frontier conversational models (e.g., sarvam-105b, sarvam-2b)
+    with OpenAI-compatible payload schemas, dual-header authentication (api-subscription-key
+    and Bearer token), and structured error translation.
+    """
+
+    DEFAULT_BASE_URL = "https://api.sarvam.ai/v1"
+
+    def __init__(
+        self,
+        api_key: str,
+        model: str = "sarvam-105b",
+        base_url: str | None = None,
+        timeout_sec: float = 45.0,
+    ) -> None:
+        if not api_key or not api_key.strip():
+            raise LLMConfigurationError("Sarvam AI API key cannot be empty")
+        self._api_key = api_key.strip()
+        self._model = (model or "sarvam-105b").strip()
+        self._base_url = (base_url or self.DEFAULT_BASE_URL).rstrip("/")
+        self._timeout_sec = timeout_sec
+
+    @property
+    def provider_name(self) -> str:
+        return "sarvam"
+
+    @property
+    def model_name(self) -> str:
+        return self._model
+
+    def generate(
+        self,
+        messages: list[LLMMessage],
+        tools: list[ToolDefinition] | None = None,
+        temperature: float = 0.2,
+        max_tokens: int = 1500,
+    ) -> ProviderResponse:
+        """Invoke Sarvam AI /chat/completions endpoint."""
+        url = f"{self._base_url}/chat/completions"
+        headers = {
+            "Content-Type": "application/json",
+            "api-subscription-key": self._api_key,
+            "Authorization": f"Bearer {self._api_key}",
+        }
+
+        # Format messages
+        formatted_msgs: list[dict[str, Any]] = []
+        for msg in messages:
+            entry: dict[str, Any] = {"role": msg.role, "content": msg.content or ""}
+            if msg.role == "tool" and msg.tool_call_id:
+                entry["tool_call_id"] = msg.tool_call_id
+            if msg.tool_calls:
+                entry["tool_calls"] = [
+                    {
+                        "id": tc.id,
+                        "type": "function",
+                        "function": {
+                            "name": tc.name,
+                            "arguments": json.dumps(tc.arguments),
+                        },
+                    }
+                    for tc in msg.tool_calls
+                ]
+            formatted_msgs.append(entry)
+
+        payload: dict[str, Any] = {
+            "model": self._model,
+            "messages": formatted_msgs,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+        }
+
+        if tools:
+            payload["tools"] = [
+                {
+                    "type": "function",
+                    "function": {
+                        "name": t.name,
+                        "description": t.description,
+                        "parameters": t.parameters,
+                    },
+                }
+                for t in tools
+            ]
+            payload["tool_choice"] = "auto"
+
+        with trace_llm_generation(
+            provider_name=self.provider_name,
+            model_name=self.model_name,
+            messages_count=len(messages),
+            tools_count=len(tools or []),
+        ) as trace_ctx:
+            try:
+                resp = requests.post(
+                    url=url,
+                    headers=headers,
+                    json=payload,
+                    timeout=self._timeout_sec,
+                )
+            except requests.exceptions.Timeout as err:
+                raise LLMTimeoutError(
+                    f"Sarvam AI request timed out after {self._timeout_sec}s"
+                ) from err
+            except requests.exceptions.RequestException as err:
+                raise LLMError(f"Network error communicating with Sarvam AI: {err}") from err
+
+            if resp.status_code in (401, 403):
+                raise LLMAuthenticationError(
+                    "Sarvam AI authentication failed: invalid api-subscription-key"
+                )
+            if resp.status_code == 429:
+                raise LLMRateLimitError("Sarvam AI rate limit or quota exceeded")
+            if resp.status_code >= 400:
+                raise LLMError(f"Sarvam AI returned HTTP {resp.status_code}: {resp.text}")
+
+            try:
+                res_data = resp.json()
+            except Exception as err:
+                raise LLMError("Malformed JSON response from Sarvam AI API") from err
+
+            choices = res_data.get("choices", [])
+            if not choices:
+                response = ProviderResponse(content="", finish_reason="stop")
+                trace_ctx["response"] = response
+                return response
+
+            msg = choices[0].get("message", {})
+            content = msg.get("content")
+            raw_tool_calls = msg.get("tool_calls", [])
+
+            parsed_tcs: list[ToolCall] = []
+            for tc in raw_tool_calls:
+                f_info = tc.get("function", {})
+                args_str = f_info.get("arguments", "{}")
+                try:
+                    args_dict = json.loads(args_str)
+                except Exception:
+                    args_dict = {"raw": args_str}
+                parsed_tcs.append(
+                    ToolCall(
+                        id=tc.get("id", "call-0"),
+                        name=f_info.get("name", "unknown"),
+                        arguments=args_dict,
+                    )
+                )
+
+            usage = res_data.get("usage", {})
+            response = ProviderResponse(
+                content=content,
+                tool_calls=parsed_tcs,
+                finish_reason=choices[0].get("finish_reason", "stop"),
+                usage=usage,
+            )
+            trace_ctx["response"] = response
+            trace_ctx["usage"] = usage
+            return response
+
+
+# =============================================================================
 # Mock Provider for Unit Tests & Offline Development
 # =============================================================================
 
@@ -523,9 +689,21 @@ def get_llm_provider(
         return GoogleGeminiProvider(api_key=api_key, model=model)
     elif provider_type == "openai":
         return OpenAIProvider(api_key=api_key, model=model)
+    elif provider_type in ("sarvam", "sarvamai", "sarvam-ai"):
+        sarvam_key = (
+            active_settings.sarvam_api_key.get_secret_value()
+            if active_settings.sarvam_api_key
+            else api_key
+        )
+        sarvam_model = active_settings.sarvam_model or active_settings.llm_model or "sarvam-105b"
+        return SarvamAIProvider(
+            api_key=sarvam_key,
+            model=sarvam_model,
+            base_url=active_settings.sarvam_base_url,
+        )
     elif provider_type == "mock":
         return MockLLMProvider(model=model)
     else:
         raise LLMConfigurationError(
-            f"Unsupported LLM provider '{provider_type}'. Allowed: google, openai, mock"
+            f"Unsupported LLM provider '{provider_type}'. Allowed: google, openai, sarvam, mock"
         )

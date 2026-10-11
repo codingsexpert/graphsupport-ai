@@ -34,6 +34,7 @@ from graphsupport.core.security import (
     scan_for_prompt_injection,
     validate_entity_id,
 )
+from graphsupport.core.tracing import trace_agent_turn, trace_tool_execution
 from graphsupport.memory.models import CustomerMemoryContext, RetrievalLimits
 
 logger = logging.getLogger("graphsupport.agents.support_agent")
@@ -141,167 +142,190 @@ class SupportAgent:
                 injection_reason,
             )
 
-        logger.info(
-            "[%s] Agent request for customer=%s (conv=%s, ticket=%s, product=%s)",
-            req_id,
-            cid,
-            conversation_id,
-            tid,
-            pid,
-        )
-
-        # 4. Resolve or create active conversation
-        conv_id = conversation_id.strip() if conversation_id else None
-        if not conv_id:
-            conv = self.service.start_conversation(
-                customer_id=cid,
-                channel="ai_chat",
-                conversation_id=f"conv-{uuid.uuid4().hex[:12]}",
-            )
-            conv_id = conv.id
-
-        # 5. Persist incoming customer message first
-        self.service.add_message(
-            conversation_id=conv_id,
-            sender_type="customer",
-            content=clean_msg,
-            ticket_id=tid,
-            authorized_customer_id=cid,
-        )
-
-        # 6. Retrieve persistent customer graph memory
-        limits = RetrievalLimits(max_tickets=self.max_history_tickets)
-        memory_context = self.service.retrieve_customer_context(
+        with trace_agent_turn(
             customer_id=cid,
-            product_id=pid,
+            message=clean_msg,
+            conversation_id=conversation_id,
             ticket_id=tid,
-            issue_query=clean_msg,
-            limits=limits,
-        )
+            product_id=pid,
+            metadata={"correlation_id": req_id, "injection_flagged": is_injection_flagged},
+        ) as turn_trace:
+            logger.info(
+                "[%s] Agent request for customer=%s (conv=%s, ticket=%s, product=%s)",
+                req_id,
+                cid,
+                conversation_id,
+                tid,
+                pid,
+            )
 
-        # 7. Initialize customer-scoped tool registry
-        tool_registry = ToolRegistry(
-            support_service=self.service,
-            authorized_customer_id=cid,
-        )
-        tool_defs = tool_registry.get_tool_definitions()
-
-        # 8. Assemble prompt messages
-        messages = assemble_agent_messages(
-            context=memory_context,
-            user_message=clean_msg,
-        )
-
-        # 9. Agent reasoning and tool loop
-        tool_executions: list[ToolExecutionRecord] = []
-        iteration = 0
-        final_text: str | None = None
-
-        while iteration < self.max_tool_iterations:
-            iteration += 1
-
-            # Call provider
-            try:
-                resp: ProviderResponse = self.provider.generate(
-                    messages=messages,
-                    tools=tool_defs,
+            # 4. Resolve or create active conversation
+            conv_id = conversation_id.strip() if conversation_id else None
+            if not conv_id:
+                conv = self.service.start_conversation(
+                    customer_id=cid,
+                    channel="ai_chat",
+                    conversation_id=f"conv-{uuid.uuid4().hex[:12]}",
                 )
-            except LLMError:
-                # Re-raise typed LLM errors for application-level handling
-                raise
-            except Exception as err:
-                raise LLMError(f"Unexpected error communicating with LLM provider: {err}") from err
+                conv_id = conv.id
 
-            # Check if model requested tool execution
-            if resp.tool_calls:
-                # Append assistant message with requested tool calls
-                messages.append(
-                    LLMMessage(
-                        role="assistant",
-                        content=resp.content,
-                        tool_calls=resp.tool_calls,
-                    )
-                )
+            # 5. Persist incoming customer message first
+            self.service.add_message(
+                conversation_id=conv_id,
+                sender_type="customer",
+                content=clean_msg,
+                ticket_id=tid,
+                authorized_customer_id=cid,
+            )
 
-                for tc in resp.tool_calls:
-                    logger.info(
-                        "[%s] Executing agent tool: %s with args: %s",
-                        req_id,
-                        tc.name,
-                        tc.arguments,
-                    )
-                    result: ToolResult = tool_registry.execute_tool(
-                        tool_name=tc.name,
-                        arguments=tc.arguments,
-                        correlation_id=req_id,
-                    )
+            # 6. Retrieve persistent customer graph memory
+            limits = RetrievalLimits(max_tickets=self.max_history_tickets)
+            memory_context = self.service.retrieve_customer_context(
+                customer_id=cid,
+                product_id=pid,
+                ticket_id=tid,
+                issue_query=clean_msg,
+                limits=limits,
+            )
 
-                    record = ToolExecutionRecord(
-                        tool_name=tc.name,
-                        arguments=tc.arguments,
-                        success=result.success,
-                        data=result.data,
-                        error=result.error,
-                        duration_ms=result.duration_ms,
-                        correlation_id=req_id,
-                    )
-                    tool_executions.append(record)
+            # 7. Initialize customer-scoped tool registry
+            tool_registry = ToolRegistry(
+                support_service=self.service,
+                authorized_customer_id=cid,
+            )
+            tool_defs = tool_registry.get_tool_definitions()
 
-                    # Feed tool response back to the conversation
+            # 8. Assemble prompt messages
+            messages = assemble_agent_messages(
+                context=memory_context,
+                user_message=clean_msg,
+            )
+
+            # 9. Agent reasoning and tool loop
+            tool_executions: list[ToolExecutionRecord] = []
+            iteration = 0
+            final_text: str | None = None
+
+            while iteration < self.max_tool_iterations:
+                iteration += 1
+
+                # Call provider
+                try:
+                    resp: ProviderResponse = self.provider.generate(
+                        messages=messages,
+                        tools=tool_defs,
+                    )
+                except LLMError:
+                    # Re-raise typed LLM errors for application-level handling
+                    raise
+                except Exception as err:
+                    raise LLMError(
+                        f"Unexpected error communicating with LLM provider: {err}"
+                    ) from err
+
+                # Check if model requested tool execution
+                if resp.tool_calls:
+                    # Append assistant message with requested tool calls
                     messages.append(
                         LLMMessage(
-                            role="tool",
-                            content=result.to_json(),
-                            tool_call_id=tc.name,
+                            role="assistant",
+                            content=resp.content,
+                            tool_calls=resp.tool_calls,
                         )
                     )
-                # Next loop iteration allows model to reason over tool outputs
-                continue
 
-            # Model produced a terminal response
-            final_text = resp.content
-            break
+                    for tc in resp.tool_calls:
+                        logger.info(
+                            "[%s] Executing agent tool: %s with args: %s",
+                            req_id,
+                            tc.name,
+                            tc.arguments,
+                        )
+                        with trace_tool_execution(
+                            tool_name=tc.name,
+                            arguments=tc.arguments,
+                            correlation_id=req_id,
+                        ) as tool_trace:
+                            result: ToolResult = tool_registry.execute_tool(
+                                tool_name=tc.name,
+                                arguments=tc.arguments,
+                                correlation_id=req_id,
+                            )
+                            tool_trace["result"] = result.data or result.error
+                            tool_trace["success"] = result.success
 
-        # Fallback if loop exhausted without terminal response
-        if final_text is None:
-            logger.warning(
-                "[%s] Agent reached maximum tool iterations (%d) for customer %s",
-                req_id,
-                self.max_tool_iterations,
-                cid,
+                        record = ToolExecutionRecord(
+                            tool_name=tc.name,
+                            arguments=tc.arguments,
+                            success=result.success,
+                            data=result.data,
+                            error=result.error,
+                            duration_ms=result.duration_ms,
+                            correlation_id=req_id,
+                        )
+                        tool_executions.append(record)
+
+                        # Feed tool response back to the conversation
+                        messages.append(
+                            LLMMessage(
+                                role="tool",
+                                content=result.to_json(),
+                                tool_call_id=tc.name,
+                            )
+                        )
+                    # Next loop iteration allows model to reason over tool outputs
+                    continue
+
+                # Model produced a terminal response
+                final_text = resp.content
+                break
+
+            # Fallback if loop exhausted without terminal response
+            if final_text is None:
+                logger.warning(
+                    "[%s] Agent reached maximum tool iterations (%d) for customer %s",
+                    req_id,
+                    self.max_tool_iterations,
+                    cid,
+                )
+                final_text = (
+                    "I've initiated the requested actions on your account, but reached the maximum "
+                    "processing limit for this turn. Your records have been updated in the "
+                    "database."
+                )
+
+            # 10. Output Validation & Sanitization
+            raw_tool_dicts = [
+                {"tool_name": r.tool_name, "args": r.arguments, "success": r.success}
+                for r in tool_executions
+            ]
+            val_result = self.output_parser.parse_and_validate(
+                raw_text=final_text,
+                context=memory_context,
+                executed_tool_records=raw_tool_dicts,
             )
-            final_text = (
-                "I've initiated the requested actions on your account, but reached the maximum "
-                "processing limit for this turn. Your records have been updated in the database."
+
+            # 11. Persist final assistant response to conversation
+            self.service.add_message(
+                conversation_id=conv_id,
+                sender_type="assistant",
+                content=val_result.sanitized_text,
+                ticket_id=tid,
+                authorized_customer_id=cid,
             )
 
-        # 10. Output Validation & Sanitization
-        raw_tool_dicts = [
-            {"tool_name": r.tool_name, "args": r.arguments, "success": r.success}
-            for r in tool_executions
-        ]
-        val_result = self.output_parser.parse_and_validate(
-            raw_text=final_text,
-            context=memory_context,
-            executed_tool_records=raw_tool_dicts,
-        )
+            # Update trace output context
+            turn_trace["output"] = val_result.sanitized_text
+            turn_trace["tools_executed"] = [r.tool_name for r in tool_executions]
+            turn_trace["iterations"] = iteration
 
-        # 11. Persist final assistant response to conversation
-        self.service.add_message(
-            conversation_id=conv_id,
-            sender_type="assistant",
-            content=val_result.sanitized_text,
-            ticket_id=tid,
-            authorized_customer_id=cid,
-        )
-
-        return AgentResponse(
-            response_text=val_result.sanitized_text,
-            conversation_id=conv_id,
-            tool_executions=tool_executions,
-            memory_context_used=memory_context,
-            iterations_used=iteration,
-            claims_verified=val_result.claims_verified,
-            correlation_id=req_id,
-            injection_flagged=is_injection_flagged,
-        )
+            return AgentResponse(
+                response_text=val_result.sanitized_text,
+                conversation_id=conv_id,
+                tool_executions=tool_executions,
+                memory_context_used=memory_context,
+                iterations_used=iteration,
+                claims_verified=val_result.claims_verified,
+                correlation_id=req_id,
+                injection_flagged=is_injection_flagged,
+            )

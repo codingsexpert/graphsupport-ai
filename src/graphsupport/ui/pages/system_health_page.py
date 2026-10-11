@@ -39,7 +39,7 @@ def render_system_health_page(settings: Settings) -> None:
     else:
         health = st.session_state["cached_health_status"]
 
-    c1, c2, c3, c4 = st.columns(4)
+    c1, c2, c3, c4, c5 = st.columns(5)
     with c1:
         st.metric(
             label="Core Runtime",
@@ -58,11 +58,19 @@ def render_system_health_page(settings: Settings) -> None:
         )
         st.metric(label="Neo4j Aura", value=n_val, delta=health.neo4j.reachability)
     with c4:
-        llm_val = settings.llm_provider.value.title()
+        raw_p = getattr(settings.llm_provider, "value", settings.llm_provider) or "Mock"
+        llm_val = str(raw_p).title()
         st.metric(
-            label="AI Reasoning",
+            label="AI Provider",
             value=llm_val,
             delta="Key Set" if settings.is_llm_configured else "Mock Mode",
+        )
+    with c5:
+        ls_val = "Active" if settings.is_langsmith_configured else "Offline"
+        st.metric(
+            label="LangSmith",
+            value=ls_val,
+            delta=settings.langsmith_project if settings.is_langsmith_configured else "Disabled",
         )
 
     st.divider()

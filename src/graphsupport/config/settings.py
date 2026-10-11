@@ -83,10 +83,10 @@ class Settings(BaseSettings):
         description="Target Neo4j database name",
     )
 
-    # LLM Provider Configuration (Reserved for Phase 5)
+    # LLM Provider Configuration
     llm_provider: str | None = Field(
         default=None,
-        description="LLM provider name (e.g., google, openai, anthropic)",
+        description="LLM provider name (e.g., google, openai, sarvam, mock)",
     )
     llm_api_key: SecretStr | None = Field(
         default=None,
@@ -94,7 +94,39 @@ class Settings(BaseSettings):
     )
     llm_model: str | None = Field(
         default=None,
-        description="Specific model identifier (e.g., gemini-2.0-flash, gpt-4o)",
+        description="Specific model identifier (e.g., gemini-2.0-flash, gpt-4o, sarvam-105b)",
+    )
+
+    # Sarvam AI Configuration (Indian LLM & Multilingual)
+    sarvam_api_key: SecretStr | None = Field(
+        default=None,
+        description="Sarvam AI API subscription key (masked)",
+    )
+    sarvam_model: str = Field(
+        default="sarvam-105b",
+        description="Sarvam AI model identifier (e.g. sarvam-105b, sarvam-2b)",
+    )
+    sarvam_base_url: str = Field(
+        default="https://api.sarvam.ai/v1",
+        description="Sarvam AI API base URL",
+    )
+
+    # LangSmith Observability Configuration
+    langsmith_tracing: bool = Field(
+        default=False,
+        description="Enable LangSmith tracing for agent reasoning and tool executions",
+    )
+    langsmith_api_key: SecretStr | None = Field(
+        default=None,
+        description="LangSmith API key for trace ingestion (masked)",
+    )
+    langsmith_project: str = Field(
+        default="graphsupport-ai",
+        description="LangSmith project name",
+    )
+    langsmith_endpoint: str = Field(
+        default="https://api.smith.langchain.com",
+        description="LangSmith API endpoint",
     )
 
     @field_validator("streamlit_server_port")
@@ -113,7 +145,19 @@ class Settings(BaseSettings):
     @property
     def is_llm_configured(self) -> bool:
         """Check if minimum LLM provider parameters are present."""
-        return bool(self.llm_provider and self.llm_api_key)
+        if not self.llm_provider:
+            return False
+        p = self.llm_provider.strip().lower()
+        if p == "mock":
+            return True
+        if p == "sarvam":
+            return bool(self.sarvam_api_key or self.llm_api_key)
+        return bool(self.llm_api_key)
+
+    @property
+    def is_langsmith_configured(self) -> bool:
+        """Check if LangSmith tracing is active and configured with credentials."""
+        return bool(self.langsmith_tracing and self.langsmith_api_key)
 
     def safe_summary(self) -> dict[str, Any]:
         """Return non-sensitive configuration summary safe for display and logging.
@@ -139,8 +183,23 @@ class Settings(BaseSettings):
                 "configured": self.is_llm_configured,
                 "provider": self.llm_provider or "[NOT CONFIGURED]",
                 "model": self.llm_model or "[NOT CONFIGURED]",
-                "api_key_set": self.llm_api_key is not None,
+                "api_key_set": bool(self.llm_api_key or self.sarvam_api_key),
                 "phase_status": "Reserved for Phase 5",
+            },
+            "sarvam": {
+                "configured": bool(
+                    self.sarvam_api_key or (self.llm_provider == "sarvam" and self.llm_api_key)
+                ),
+                "model": self.sarvam_model,
+                "base_url": self.sarvam_base_url,
+                "api_key_set": self.sarvam_api_key is not None,
+            },
+            "langsmith": {
+                "configured": self.is_langsmith_configured,
+                "tracing_enabled": self.langsmith_tracing,
+                "project": self.langsmith_project,
+                "endpoint": self.langsmith_endpoint,
+                "api_key_set": self.langsmith_api_key is not None,
             },
         }
 

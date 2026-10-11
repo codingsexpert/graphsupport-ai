@@ -148,17 +148,34 @@ Response to UI / Caller
 
 ### 2. Configurable LLM Providers (`graphsupport.agents.provider`)
 Supported providers selectable via typed settings:
-- **`google` / `gemini`**: Direct Google Gemini API integration using models like `gemini-1.5-flash` or `gemini-1.5-pro`.
+- **`google` / `gemini`**: Direct Google Gemini API integration using models like `gemini-2.0-flash` or `gemini-1.5-pro`.
 - **`openai`**: OpenAI-compatible REST API integration using models like `gpt-4o-mini` or `gpt-4o`.
+- **`sarvam`**: Sarvam AI Indian LLM provider (`sarvam-105b`, `sarvam-2b`) with multilingual support and dual-header authentication (`api-subscription-key` & Bearer).
 - **`mock`**: In-memory test provider for unit tests, offline development, and deterministic simulation.
 
 Environment variables in `.env`:
 ```bash
-LLM_PROVIDER=google          # Options: google, openai, mock
-LLM_MODEL=gemini-1.5-flash   # Model identifier
+# Standard Provider
+LLM_PROVIDER=google          # Options: google, openai, sarvam, mock
+LLM_MODEL=gemini-2.0-flash   # Model identifier
 LLM_API_KEY=<your-api-key>   # Secret key (never logged, masked in diagnostics)
-LLM_TIMEOUT_SECONDS=30.0     # HTTP request timeout
+
+# Sarvam AI (Indian LLM & Multilingual)
+SARVAM_API_KEY=<your-sarvam-key>
+SARVAM_MODEL=sarvam-105b     # Options: sarvam-105b, sarvam-2b
+SARVAM_BASE_URL=https://api.sarvam.ai/v1
+
+# LangSmith Observability & Tracing
+LANGSMITH_TRACING=true       # Enable full agent run tree tracing
+LANGSMITH_API_KEY=<your-lsv2-key>
+LANGSMITH_PROJECT=graphsupport-ai
+LANGSMITH_ENDPOINT=https://api.smith.langchain.com
 ```
+
+### 2b. LangSmith Tracing & Observability (`graphsupport.core.tracing`)
+- **Zero-overhead fail-safe design**: Operates in fast, zero-overhead no-op mode when `LANGSMITH_TRACING=false` or credentials are unset.
+- **Hierarchical Run Trees**: Traces root agent turns (`chain`), child tool executions (`tool`), and LLM provider generations (`llm`).
+- **Telemetry & Safety**: Records prompt tokens, response latency, tool parameters, error states, and execution duration while automatically masking sensitive customer data and credentials.
 
 ### 3. Approved Domain Tools (`graphsupport.agents.tool_registry`)
 All tools are strictly sandboxed and bound to the authenticated customer's boundary:

@@ -54,7 +54,8 @@ graph TD
         SupportAgent --> SecScanner[Security Scanner & Prompt Safety]
         SupportAgent --> MemRetriever[HistoryRetriever & ContextBuilder]
         SupportAgent --> PromptAssembler[Prompt Templates & System Directives]
-        SupportAgent --> LLMProvider[LLM Provider: Gemini / Claude / OpenAI / Mock]
+        SupportAgent --> LLMProvider[LLM Provider: Gemini / OpenAI / Sarvam AI / Mock]
+        SupportAgent --> LangSmith[LangSmith Observability & Tracing]
         SupportAgent --> ToolReg[ToolRegistry - Controlled Execution]
         SupportAgent --> OutParser[OutputParser - Grounding & Anti-Hallucination]
         
