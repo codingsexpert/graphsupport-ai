@@ -1,6 +1,7 @@
 """Reusable Streamlit UI components for GraphSupport AI.
 
-Renders status cards, architecture overview, phase indicators, and safe configuration details.
+Renders status cards, architecture overview, phase indicators, safe configuration details,
+and interactive Neo4j schema/connectivity management.
 """
 
 from typing import Any
@@ -54,11 +55,15 @@ def render_status_cards(health: HealthStatus) -> None:
         )
 
     with col3:
-        neo4j_pill = (
-            '<span class="gs-pill-success">Configured</span>'
-            if health.neo4j.configured
-            else '<span class="gs-pill-neutral">Phase 2 Reserved</span>'
-        )
+        if not health.neo4j.configured:
+            neo4j_pill = '<span class="gs-pill-neutral">Config Missing</span>'
+        elif health.neo4j.reachability == "reachable":
+            neo4j_pill = '<span class="gs-pill-success">● Connected</span>'
+        elif health.neo4j.reachability == "unavailable":
+            neo4j_pill = '<span class="gs-pill-warning">● Unavailable</span>'
+        else:
+            neo4j_pill = '<span class="gs-pill-warning">Not Checked</span>'
+
         st.markdown(
             f"""
             <div class="gs-card">
@@ -88,6 +93,57 @@ def render_status_cards(health: HealthStatus) -> None:
         )
 
 
+def render_database_control_panel(settings: Settings) -> None:
+    """Render interactive controls for Neo4j connectivity and schema verification."""
+    st.subheader("Neo4j Database Operations (Phase 2)")
+
+    if not settings.is_neo4j_configured:
+        st.info(
+            "Neo4j connection parameters are not fully configured. "
+            "Please configure NEO4J_URI, NEO4J_USERNAME, and NEO4J_PASSWORD in your .env file."
+        )
+        return
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        if st.button("🔌 Verify Live Connection", use_container_width=True):
+            with st.spinner("Connecting to Neo4j..."):
+                try:
+                    from graphsupport.graph.driver import get_driver_manager
+
+                    dm = get_driver_manager(settings=settings)
+                    dm.verify_connectivity()
+                    srv = dm.get_server_info()
+                    agent = srv.get("agent", "Neo4j")
+                    st.success(f"Successfully connected to Neo4j! Server Agent: {agent}")
+                except Exception as err:
+                    st.error(f"Connection verification failed: {type(err).__name__}: {err}")
+
+    with col2:
+        if st.button("⚡ Initialize Graph Schema (Idempotent)", use_container_width=True):
+            with st.spinner("Applying constraints and indexes..."):
+                try:
+                    from graphsupport.graph.driver import get_driver_manager
+                    from graphsupport.graph.schema import initialize_schema
+
+                    dm = get_driver_manager(settings=settings)
+                    report = initialize_schema(dm.get_driver(), database=settings.neo4j_database)
+                    if report.is_successful:
+                        msg = (
+                            f"Schema initialization successful! Applied "
+                            f"{report.succeeded}/{report.total} constraints & indexes."
+                        )
+                        st.success(msg)
+                    else:
+                        st.warning(
+                            f"Applied {report.succeeded}/{report.total} statements. "
+                            f"{report.failed} encountered issues."
+                        )
+                except Exception as err:
+                    st.error(f"Schema initialization failed: {type(err).__name__}: {err}")
+
+
 def render_architecture_overview() -> None:
     """Render the architectural diagram and component boundaries."""
     st.subheader("Architectural Foundation")
@@ -99,12 +155,12 @@ def render_architecture_overview() -> None:
           Pydantic Settings with automatic secret masking.
         - **Core Layer (`graphsupport.core`)**: Centralized exception hierarchy,
           structured logging, and health readiness monitoring.
+        - **Graph Persistence (`graphsupport.graph`)**: Managed Neo4j driver connection pooling,
+          idempotent schema constraints/indexes, and parameterized entity repositories.
+        - **Domain Models (`graphsupport.graph.models`)**: Pydantic entities for Customer, Product,
+          Issue, SupportTicket, Conversation, Message, TroubleshootingStep, and Resolution.
         - **UI Layer (`graphsupport.ui`)**: Declarative Streamlit dashboard components
           and token-based styling.
-        - **Graph Persistence (Phase 2)**: Native Neo4j property graph holding customer
-          support context (users, tickets, devices, resolutions).
-        - **Reasoning & Agent Engine (Phase 5)**: Context-aware LLM agent retrieving subgraphs
-          to resolve support inquiries with cross-session memory.
         """
     )
 
@@ -127,19 +183,19 @@ def render_phase_roadmap() -> None:
     phases = [
         (
             "Phase 1: Professional Foundation",
-            "Active",
+            "Completed",
             "Modular architecture, typed settings, structured logging, health check, and tests.",
-            True,
-        ),
-        (
-            "Phase 2: Neo4j Schema & Storage",
-            "Upcoming",
-            "Neo4j driver connection, property graph constraints, schemas, and repositories.",
             False,
         ),
         (
+            "Phase 2: Neo4j Schema & Storage",
+            "Active",
+            "Neo4j driver connection, property graph constraints, schemas, and repositories.",
+            True,
+        ),
+        (
             "Phase 3: Knowledge & Ticket Ingestion",
-            "Pending",
+            "Upcoming",
             "Support ticket parsing, customer identity linkage, and resolution ingestion.",
             False,
         ),
@@ -167,7 +223,7 @@ def render_phase_roadmap() -> None:
         badge_html = (
             '<span class="gs-pill-success">CURRENT</span>'
             if is_active
-            else '<span class="gs-pill-neutral">UPCOMING</span>'
+            else '<span class="gs-pill-neutral">MILESTONE</span>'
         )
         active_class = "active" if is_active else ""
         st.markdown(

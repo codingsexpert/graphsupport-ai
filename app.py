@@ -1,7 +1,7 @@
 """GraphSupport AI - Main Streamlit Application Entrypoint.
 
 Provides a clean dashboard presenting system readiness, architectural overview,
-safe runtime configuration, and project phase status.
+safe runtime configuration, Neo4j connectivity controls, and project phase status.
 """
 
 import streamlit as st
@@ -11,6 +11,7 @@ from graphsupport.core import check_health, configure_logging
 from graphsupport.ui import (
     apply_custom_styles,
     render_architecture_overview,
+    render_database_control_panel,
     render_header,
     render_phase_roadmap,
     render_safe_config_section,
@@ -20,14 +21,14 @@ from graphsupport.ui import (
 
 
 def main() -> None:
-    """Initialize and render the GraphSupport AI Phase 1 landing dashboard."""
+    """Initialize and render the GraphSupport AI dashboard."""
     # 1. Load typed settings & initialize structured logging
     settings = get_settings()
     configure_logging(settings)
 
     # 2. Configure Streamlit page layout
     st.set_page_config(
-        page_title=f"{settings.app_name} - Foundation",
+        page_title=f"{settings.app_name} - Graph Foundation",
         page_icon="🕸️",
         layout="wide",
         initial_sidebar_state="expanded",
@@ -36,8 +37,8 @@ def main() -> None:
     # 3. Apply custom design system styles
     apply_custom_styles()
 
-    # 4. Perform local non-sensitive health check
-    health = check_health(settings)
+    # 4. Perform local non-sensitive health check (no expensive network query on initial rerun)
+    health = check_health(settings, verify_database=False)
 
     # 5. Render sidebar
     render_sidebar(settings, health)
@@ -49,14 +50,14 @@ def main() -> None:
             "Context-aware customer support engine powered by Neo4j graph intelligence "
             "and cross-session memory."
         ),
-        phase_name=health.current_phase,
+        phase_name="Phase 2: Neo4j Schema & Storage",
     )
 
     st.markdown(
         """
-        > **Phase 1 Status**: The core architecture, configuration system, structured logging,
-        > and test infrastructure are operational. Integration with the Neo4j graph database
-        > is scheduled for **Phase 2**, and the LLM reasoning agent is scheduled for **Phase 5**.
+        > **Phase 2 Status**: The Neo4j graph schema, entity models, connection pooling,
+        > and customer storage repository are operational. Live connectivity and schema constraints
+        > can be verified below. LLM reasoning agent integration is scheduled for **Phase 5**.
         """
     )
 
@@ -65,17 +66,22 @@ def main() -> None:
 
     st.divider()
 
-    # 8. Render architecture details
+    # 8. Render interactive Neo4j database controls
+    render_database_control_panel(settings)
+
+    st.divider()
+
+    # 9. Render architecture details
     render_architecture_overview()
 
     st.divider()
 
-    # 9. Render safe configuration inspection
+    # 10. Render safe configuration inspection
     render_safe_config_section(settings)
 
     st.divider()
 
-    # 10. Render phased roadmap
+    # 11. Render phased roadmap
     render_phase_roadmap()
 
 

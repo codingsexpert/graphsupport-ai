@@ -15,12 +15,20 @@ def render_sidebar(settings: Settings, health: HealthStatus) -> None:
         st.divider()
 
         st.markdown("### Active Phase")
-        st.info("Phase 1: Professional Foundation")
+        st.info("Phase 2: Neo4j Schema & Storage")
 
         st.markdown("### Subsystem Readiness")
         st.markdown(f"- **Core Runtime**: `{health.status.upper()}`")
-        neo4j_txt = "Configured" if health.neo4j.configured else "Deferred (Phase 2)"
+        if not health.neo4j.configured:
+            neo4j_txt = "Not Configured"
+        elif health.neo4j.reachability == "reachable":
+            neo4j_txt = "Reachable"
+        elif health.neo4j.reachability == "unavailable":
+            neo4j_txt = "Unavailable"
+        else:
+            neo4j_txt = "Configured (Not Checked)"
         st.markdown(f"- **Neo4j Graph**: `{neo4j_txt}`")
+
         llm_txt = "Configured" if health.llm.configured else "Deferred (Phase 5)"
         st.markdown(f"- **LLM Reasoning**: `{llm_txt}`")
 
@@ -29,6 +37,7 @@ def render_sidebar(settings: Settings, health: HealthStatus) -> None:
         st.markdown("### Development Tools")
         st.markdown(
             """
+            - **Database**: Neo4j 5.x / AuraDB
             - **Linter**: Ruff
             - **Test Suite**: Pytest
             - **Settings**: Pydantic Settings

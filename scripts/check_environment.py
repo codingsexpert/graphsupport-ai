@@ -76,6 +76,30 @@ def check_graphsupport_package() -> CheckResult:
         return CheckResult("GraphSupport Core", False, f"Import/Health failure: {err}")
 
 
+def check_neo4j_connectivity() -> CheckResult:
+    """Check optional live Neo4j database connectivity if configured."""
+    try:
+        from graphsupport.config import get_settings
+        from graphsupport.graph.driver import get_driver_manager
+
+        settings = get_settings()
+        if not settings.is_neo4j_configured:
+            return CheckResult(
+                "Neo4j Live Connection", True, "Optional: unconfigured in .env (skipped)"
+            )
+
+        dm = get_driver_manager(settings=settings)
+        dm.verify_connectivity()
+        srv = dm.get_server_info()
+        return CheckResult(
+            "Neo4j Live Connection", True, f"Connected ({srv.get('agent', 'Neo4j')})"
+        )
+    except Exception as err:
+        return CheckResult(
+            "Neo4j Live Connection", False, f"Connection failed: {type(err).__name__}"
+        )
+
+
 def main() -> int:
     """Execute all diagnostic checks and display formatted results."""
     print("=" * 72)
@@ -90,9 +114,11 @@ def main() -> int:
         check_package("pydantic", "pydantic"),
         check_package("pydantic-settings", "pydantic_settings"),
         check_package("streamlit", "streamlit"),
+        check_package("neo4j", "neo4j"),
         check_package("pytest", "pytest"),
         check_package("ruff", "ruff"),
         check_graphsupport_package(),
+        check_neo4j_connectivity(),
     ]
 
     all_passed = True

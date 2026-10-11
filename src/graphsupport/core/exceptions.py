@@ -35,3 +35,30 @@ class ServiceUnavailableError(GraphSupportError):
 
 class PhaseNotImplementedError(GraphSupportError):
     """Raised when functionality planned for a future implementation phase is invoked."""
+
+
+# --- Database & Graph Persistence Exceptions ---
+
+
+class DatabaseError(GraphSupportError):
+    """Base exception for Neo4j database and graph operations."""
+
+
+class DatabaseConfigurationError(DatabaseError):
+    """Raised when database connection settings or credentials are missing/invalid."""
+
+
+class DatabaseConnectionError(DatabaseError):
+    """Raised when connecting to Neo4j fails, times out, or encounters authentication issues."""
+
+
+class SchemaError(DatabaseError):
+    """Raised when graph schema migration, constraint, or index application fails."""
+
+
+class RepositoryError(DatabaseError):
+    """Raised when executing repository operations or Cypher queries fails."""
+
+
+class EntityNotFoundError(RepositoryError):
+    """Raised when an expected graph entity is not found by ID or lookup key."""

@@ -2,6 +2,7 @@
 
 from graphsupport.ui.components import (
     render_architecture_overview,
+    render_database_control_panel,
     render_header,
     render_phase_roadmap,
     render_safe_config_section,
@@ -14,6 +15,7 @@ __all__ = [
     "apply_custom_styles",
     "render_header",
     "render_status_cards",
+    "render_database_control_panel",
     "render_architecture_overview",
     "render_safe_config_section",
     "render_phase_roadmap",

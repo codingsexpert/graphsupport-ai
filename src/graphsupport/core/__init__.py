@@ -2,9 +2,15 @@
 
 from graphsupport.core.exceptions import (
     ConfigurationError,
+    DatabaseConfigurationError,
+    DatabaseConnectionError,
+    DatabaseError,
+    EntityNotFoundError,
     EnvironmentValidationError,
     GraphSupportError,
     PhaseNotImplementedError,
+    RepositoryError,
+    SchemaError,
     ServiceUnavailableError,
 )
 from graphsupport.core.health import HealthStatus, check_health
@@ -16,6 +22,12 @@ __all__ = [
     "EnvironmentValidationError",
     "ServiceUnavailableError",
     "PhaseNotImplementedError",
+    "DatabaseError",
+    "DatabaseConfigurationError",
+    "DatabaseConnectionError",
+    "SchemaError",
+    "RepositoryError",
+    "EntityNotFoundError",
     "configure_logging",
     "HealthStatus",
     "check_health",
