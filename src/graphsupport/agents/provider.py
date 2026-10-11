@@ -401,7 +401,7 @@ class OpenAIProvider(LLMProvider):
 
         msg = choices[0].get("message", {})
         content = msg.get("content")
-        raw_tool_calls = msg.get("tool_calls", [])
+        raw_tool_calls = msg.get("tool_calls") or []
 
         parsed_tcs: list[ToolCall] = []
         for tc in raw_tool_calls:
@@ -563,7 +563,7 @@ class SarvamAIProvider(LLMProvider):
 
             msg = choices[0].get("message", {})
             content = msg.get("content")
-            raw_tool_calls = msg.get("tool_calls", [])
+            raw_tool_calls = msg.get("tool_calls") or []
 
             parsed_tcs: list[ToolCall] = []
             for tc in raw_tool_calls:

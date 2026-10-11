@@ -103,8 +103,8 @@ class Settings(BaseSettings):
         description="Sarvam AI API subscription key (masked)",
     )
     sarvam_model: str = Field(
-        default="sarvam-105b",
-        description="Sarvam AI model identifier (e.g. sarvam-105b, sarvam-2b)",
+        default="sarvam-105b-conversations",
+        description="Sarvam AI model identifier (e.g. sarvam-105b-conversations, sarvam-105b)",
     )
     sarvam_base_url: str = Field(
         default="https://api.sarvam.ai/v1",

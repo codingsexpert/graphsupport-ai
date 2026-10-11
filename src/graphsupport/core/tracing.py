@@ -55,6 +55,33 @@ def setup_langsmith_environment() -> None:
         logger.debug("Failed to set LangSmith environment variables: %s", err)
 
 
+_client_instance: Any = None
+
+
+def get_langsmith_client() -> Any:
+    """Return a configured LangSmith Client instance if enabled."""
+    global _client_instance
+    if _client_instance is not None:
+        return _client_instance
+
+    if not is_tracing_active() or langsmith is None:
+        return None
+
+    try:
+        settings = get_settings()
+        api_key = (
+            settings.langsmith_api_key.get_secret_value() if settings.langsmith_api_key else None
+        )
+        _client_instance = langsmith.Client(
+            api_key=api_key,
+            api_url=settings.langsmith_endpoint,
+        )
+        return _client_instance
+    except Exception as err:
+        logger.debug("Failed to initialize LangSmith client: %s", err)
+        return None
+
+
 @contextlib.contextmanager
 def trace_agent_turn(
     customer_id: str,
@@ -82,6 +109,7 @@ def trace_agent_turn(
 
     setup_langsmith_environment()
     settings = get_settings()
+    client = get_langsmith_client()
 
     run_tags = ["agent", "graphsupport", "support-turn"]
     if tags:
@@ -101,6 +129,7 @@ def trace_agent_turn(
         run_tree = RunTree(
             name="graphsupport.agent_turn",
             run_type="chain",
+            client=client,
             inputs={
                 "customer_id": customer_id,
                 "message": redact_sensitive_text(message),
@@ -153,12 +182,15 @@ def trace_tool_execution(
         yield ctx
         return
 
+    setup_langsmith_environment()
     settings = get_settings()
+    client = get_langsmith_client()
     run_tree = None
     try:
         run_tree = RunTree(
             name=f"tool:{tool_name}",
             run_type="tool",
+            client=client,
             inputs={
                 "tool_name": tool_name,
                 "arguments": arguments,
@@ -209,12 +241,15 @@ def trace_llm_generation(
         yield ctx
         return
 
+    setup_langsmith_environment()
     settings = get_settings()
+    client = get_langsmith_client()
     run_tree = None
     try:
         run_tree = RunTree(
             name=f"llm:{provider_name}:{model_name}",
             run_type="llm",
+            client=client,
             inputs={
                 "provider": provider_name,
                 "model": model_name,
