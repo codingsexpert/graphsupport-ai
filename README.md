@@ -14,8 +14,8 @@ GraphSupport AI is an enterprise customer support platform designed to remember 
 | **Phase 2** | **Neo4j Schema & Storage** | **Completed** | Neo4j driver connection pooling, graph models, uniqueness constraints, indexes, customer repository |
 | **Phase 3** | **Persistent Customer Support Data Layer** | **Completed** | Persistent Customers, Products, Issues, Tickets, Conversations, Messages, Attempts, Resolutions, Service layer, Streamlit Workbench |
 | **Phase 4** | **Graph Retrieval & Memory** | **Completed** | Persistent graph memory, customer context retrieval, deterministic relevance ranking, outcome fidelity, Streamlit Memory Inspector |
-| **Phase 5** | **Context-Aware LLM Agent** | *Pending* | LLM reasoning engine, prompt orchestration, cross-session memory |
-| **Phase 6** | **Interactive Support UI** | *Pending* | Interactive Streamlit portal, chat UI, graph visualizer |
+| **Phase 5** | **Context-Aware LLM Agent** | **Completed** | Configurable LLM provider (Gemini, OpenAI, Mock), 7 domain tools, grounded prompt templates, response validator, Streamlit AI Chat |
+| **Phase 6** | **Interactive Support UI** | *Pending* | Interactive Streamlit portal, ticket views, conversation history, graph visualizer, evaluation interface |
 
 ---
 
@@ -107,6 +107,79 @@ Phase 4 establishes cross-session persistent customer memory using deterministic
 
 ---
 
+## 🤖 Context-Aware AI Support Agent (Phase 5)
+
+Phase 5 builds on Phases 1–4 by providing an enterprise AI support agent capable of reasoning over retrieved Neo4j knowledge graphs, running authorized database tools within safe boundaries, persisting conversation transcripts, and presenting a conversational interface in Streamlit.
+
+### 1. Agent Architecture & Request Lifecycle
+```
+User Message
+     │
+     ▼
+[ 1. Validate Customer & Input ]  ──> Enforce non-empty string, length bounds, identity check
+     │
+     ▼
+[ 2. Retrieve Graph Memory ]       ──> HistoryRetriever (ranked tickets, products, failed steps)
+     │
+     ▼
+[ 3. Assemble Prompt & Context ]   ──> BASE_SYSTEM_INSTRUCTIONS + formatted evidence + history
+     │
+     ▼
+[ 4. Configurable LLM Provider ]   ──> Google Gemini / OpenAI / Mock with timeouts & retry guards
+     │
+     ├── Tool Calls Requested?
+     │         │
+     │         ▼
+     │   [ 5. Tool Registry ]     ──> Authorize customer ID, execute approved tools (max 4 iters)
+     │         │
+     │         └── Loop back to LLM with tool output
+     │
+     ▼
+[ 6. Response Validation ]        ──> Detect hallucinated claims, sanitize leaks, verify status
+     │
+     ▼
+[ 7. Conversation Persistence ]   ──> Atomic storage of user & assistant turns in Neo4j
+     │
+     ▼
+Response to UI / Caller
+```
+
+### 2. Configurable LLM Providers (`graphsupport.agents.provider`)
+Supported providers selectable via typed settings:
+- **`google` / `gemini`**: Direct Google Gemini API integration using models like `gemini-1.5-flash` or `gemini-1.5-pro`.
+- **`openai`**: OpenAI-compatible REST API integration using models like `gpt-4o-mini` or `gpt-4o`.
+- **`mock`**: In-memory test provider for unit tests, offline development, and deterministic simulation.
+
+Environment variables in `.env`:
+```bash
+LLM_PROVIDER=google          # Options: google, openai, mock
+LLM_MODEL=gemini-1.5-flash   # Model identifier
+LLM_API_KEY=<your-api-key>   # Secret key (never logged, masked in diagnostics)
+LLM_TIMEOUT_SECONDS=30.0     # HTTP request timeout
+```
+
+### 3. Approved Domain Tools (`graphsupport.agents.tool_registry`)
+All tools are strictly sandboxed and bound to the authenticated customer's boundary:
+| Tool Name | Operation | Purpose |
+|---|---|---|
+| `get_customer_history` | Read | Retrieve recent tickets, products, diagnostic steps, and resolutions |
+| `get_ticket_status` | Read | Check ticket status, title, and priority (enforces ownership) |
+| `get_product_info` | Read | Look up catalog products by name or SKU |
+| `record_troubleshooting_attempt` | Write | Log diagnostic action and outcome (`failed`, `success`, `partial`, `unknown`) |
+| `create_support_ticket` | Write | Atomically open support ticket linked to customer, product, and issue |
+| `update_ticket_status` | Write | Transition ticket lifecycle status (`open`, `in_progress`, `resolved`, `closed`) |
+| `escalate_ticket` | Write | Record escalation attempt to Tier 2 support |
+
+*Safety rule*: The agent cannot run arbitrary code, shell commands, raw Cypher, or query other customers' tickets.
+
+### 4. Memory Grounding & Anti-Hallucination Directives
+- **Factual Evidence Only**: Retrieved graph facts are treated strictly as evidence. Missing records cannot be fabricated.
+- **Outcome Fidelity**: If a troubleshooting step failed in a previous session, the agent is instructed not to repeat it without technical justification and to acknowledge the prior attempt.
+- **Verification Before Claims**: The agent is forbidden from claiming an action succeeded unless verified by a tool return.
+- **Prompt Injection Defense**: Customer inputs and stored history are treated as untrusted data blocks. System directives cannot be overridden by user messages.
+
+---
+
 ## 🚀 Quickstart Guide
 
 ### 1. Prerequisites
@@ -160,14 +233,17 @@ Open your browser at `http://localhost:8501` to access the Phase 4 Memory Inspec
 
 ### Run Unit and Integration Tests
 ```bash
-# Run all tests (all 81 unit + live integration tests)
+# Run all tests (all 101 unit + live integration tests)
 pytest -v
 
-# Run Phase 4 graph memory unit tests (completely mocked, fast)
+# Run Phase 5 Agent unit tests (provider, tools, agent orchestrator)
+pytest tests/unit/test_agent_*.py tests/unit/test_support_agent.py -v
+
+# Run Phase 4 graph memory unit tests
 pytest tests/unit/test_graph_memory.py -v
 
-# Run Phase 4 live cross-session memory integration test against Neo4j Aura
-pytest tests/integration/test_phase4_live.py -v
+# Run Phase 5 live agent integration test against Neo4j Aura
+pytest tests/integration/test_phase5_agent_live.py -v
 
 # Run all live Neo4j integration tests
 pytest tests/integration/ -v
@@ -182,25 +258,26 @@ To verify that history survives across application sessions:
 5. Open the **Phase 4: Persistent Graph Memory Inspector** section in the UI or run `service.retrieve_customer_context(customer_id)`.
 6. Verify that the previous ticket, product linkage, and the failed troubleshooting attempt are retrieved intact from Neo4j.
 7. Verify that the failed attempt remains marked as `🔴 FAILED` with diagnostic flags preserved.
+8. Ask the AI Support Agent about the issue; note that it acknowledges the failed attempt and avoids suggesting it again!
 
 ---
 
 ## 🔒 Security & Authorization Boundaries
 
 - **Parameterization**: 100% of Cypher queries use `$params` without string concatenation or f-string interpolation.
-- **Secret Safety**: Passwords, URIs, and tokens are automatically masked by Pydantic Settings and filtered from log outputs.
-- **Tenant Ownership Validation**: Customer-to-ticket ownership is verified before context assembly. Attempting to access another customer's ticket raises `AuthorizationError`.
-- **Bounded Ingestion**: Queries use explicit limits (`RetrievalLimits`) to prevent unbounded graph traversals from causing memory bloat or giant LLM prompts.
+- **Secret Safety**: Passwords, URIs, and API keys are automatically masked by Pydantic Settings and filtered from log outputs.
+- **Tenant Ownership Validation**: Customer-to-ticket ownership is verified before context assembly and before any tool action. Cross-customer manipulation is blocked at application runtime.
+- **Bounded Loops**: Agent tool loops are strictly capped at 4 iterations with maximum context limits.
+- **Untrusted Input Treatment**: User messages and database strings cannot alter system prompt instructions.
 
 ---
 
-## 🔮 Scope Boundaries & Deferred Features (Phase 5)
+## 🔮 Scope Boundaries & Deferred Features (Phase 6)
 
-Phase 4 strictly implements deterministic graph retrieval and context compilation. The following features are intentionally deferred to Phase 5:
-- **LLM Reasoning & Chat**: AI conversational agent and prompt orchestration.
-- **Configurable LLM Provider**: Integration with Gemini / OpenAI / Anthropic APIs.
-- **Autonomous Tool-Calling**: Dynamic execution of database updates by an LLM loop.
-- **Automated Escalation**: Machine-driven tier escalations.
+Phase 5 completes the context-aware AI support agent and tool execution layer. The following features are intentionally scheduled for Phase 6:
+- **Polished Streamlit Support Dashboard**: Dedicated ticket views, live analytics, and filtering.
+- **Interactive Graph Explorer**: Visual rendering of customer-ticket-attempt subgraphs.
+- **Agent Evaluation Interface**: Systematic benchmark suite for diagnostic accuracy and hallucination rates.
 
 ---
 

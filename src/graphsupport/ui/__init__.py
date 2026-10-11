@@ -1,5 +1,6 @@
 """UI module for GraphSupport AI Streamlit dashboard."""
 
+from graphsupport.ui.chat import render_phase5_support_chat
 from graphsupport.ui.components import (
     render_architecture_overview,
     render_database_control_panel,
@@ -20,6 +21,7 @@ __all__ = [
     "render_database_control_panel",
     "render_phase3_data_management",
     "render_phase4_memory_inspector",
+    "render_phase5_support_chat",
     "render_architecture_overview",
     "render_safe_config_section",
     "render_phase_roadmap",

@@ -15,6 +15,7 @@ from graphsupport.ui import (
     render_header,
     render_phase3_data_management,
     render_phase4_memory_inspector,
+    render_phase5_support_chat,
     render_phase_roadmap,
     render_safe_config_section,
     render_sidebar,
@@ -30,7 +31,7 @@ def main() -> None:
 
     # 2. Configure Streamlit page layout
     st.set_page_config(
-        page_title=f"{settings.app_name} - Customer Support Data Layer",
+        page_title=f"{settings.app_name} - AI Customer Support Agent",
         page_icon="🕸️",
         layout="wide",
         initial_sidebar_state="expanded",
@@ -50,16 +51,16 @@ def main() -> None:
         title="GraphSupport AI",
         subtitle=(
             "Context-aware customer support engine powered by Neo4j graph intelligence "
-            "and cross-session memory."
+            "and LLM reasoning."
         ),
-        phase_name="Phase 4: Persistent Graph Memory & Retrieval",
+        phase_name="Phase 5: Context-Aware AI Support Agent",
     )
 
     st.markdown(
         """
-        > **Phase 4 Status**: Persistent graph memory & context retrieval is active. Customer
-        > knowledge subgraphs are deterministically retrieved and ranked with outcome fidelity
-        > from Neo4j across sessions.
+        > **Phase 5 Status**: The context-aware AI support agent is active. Customer inquiries
+        > are grounded in persistent Neo4j graph memory with controlled diagnostic tool execution
+        > and factual validation.
         """
     )
 
@@ -68,12 +69,17 @@ def main() -> None:
 
     st.divider()
 
-    # 8. Render Phase 4 Graph Memory Inspector
+    # 8. Render Phase 5 AI Support Chat
+    render_phase5_support_chat(settings)
+
+    st.divider()
+
+    # 9. Render Phase 4 Graph Memory Inspector
     render_phase4_memory_inspector(settings)
 
     st.divider()
 
-    # 9. Render Phase 3 Customer Support Workbench
+    # 10. Render Phase 3 Customer Support Workbench
     render_phase3_data_management(settings)
 
     st.divider()

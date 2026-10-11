@@ -81,15 +81,19 @@ All unit tests run against in-memory mocks without network dependencies:
 pytest tests/unit/ -v
 ```
 Includes:
+- `test_agent_provider.py`: LLM provider authentication, timeouts, rate limits, model failure handling.
+- `test_agent_tools.py`: Tool registry allowlisting, input validation, customer authorization checks.
+- `test_support_agent.py`: Agent orchestrator workflow, memory grounding, tool loops, anti-hallucination.
+- `test_graph_memory.py`: Relevance ranking and context builder.
 - `test_phase3_repositories.py`: Parameterized repository tests for Customer, Product, Ticket, Conversation, Troubleshooting.
 - `test_support_service.py`: Business workflow, validation, and authorization boundary tests.
-- `test_graph_models.py`, `test_graph_driver.py`, `test_graph_schema.py`, etc.
 
 ### Run Live Neo4j Integration Tests
-Live tests target your configured Neo4j instance, test connectivity, and run full end-to-end workflows with isolated prefixes (`test-phase3-*`) and guaranteed cleanup:
+Live tests target your configured Neo4j instance, test connectivity, and run full end-to-end workflows with isolated prefixes (`test-phase3-*`, `test-phase4-*`, `test-phase5-*`) and guaranteed cleanup:
 ```bash
 pytest tests/integration/ -v
 ```
+Includes `test_phase5_agent_live.py` testing the complete agent request lifecycle against live Neo4j Aura.
 *(If Neo4j is unconfigured or unreachable, integration tests skip automatically with clear messaging).*
 
 ---

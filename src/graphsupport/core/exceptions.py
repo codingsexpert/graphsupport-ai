@@ -78,3 +78,34 @@ class RelationshipError(RepositoryError):
 
 class AuthorizationError(GraphSupportError):
     """Raised when an operation violates customer identity or context boundaries."""
+
+
+# --- LLM Provider & Agent Exceptions ---
+
+
+class LLMError(GraphSupportError):
+    """Base exception for all LLM provider communication and generation errors."""
+
+
+class LLMConfigurationError(LLMError, ConfigurationError):
+    """Raised when LLM provider credentials, API key, or model settings are unconfigured."""
+
+
+class LLMAuthenticationError(LLMError):
+    """Raised when LLM provider rejects authentication credentials or API key."""
+
+
+class LLMRateLimitError(LLMError):
+    """Raised when LLM provider rate limit or quota is exceeded."""
+
+
+class LLMTimeoutError(LLMError):
+    """Raised when LLM provider request times out."""
+
+
+class ToolExecutionError(GraphSupportError):
+    """Raised when agent tool invocation fails validation or execution."""
+
+
+class ResponseValidationError(GraphSupportError):
+    """Raised when agent response fails safety, factual groundings, or schema validation."""

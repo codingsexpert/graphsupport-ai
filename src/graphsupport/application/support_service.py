@@ -562,6 +562,18 @@ class SupportService:
 
         return details
 
+    def get_conversation_messages(
+        self,
+        conversation_id: str,
+        authorized_customer_id: str | None = None,
+    ) -> list[Message]:
+        """Retrieve ordered messages for a conversation."""
+        details = self.get_conversation_details(
+            conversation_id=conversation_id,
+            authorized_customer_id=authorized_customer_id,
+        )
+        return details.messages if details else []
+
     # =========================================================================
     # Troubleshooting Attempts and Resolutions
     # =========================================================================
