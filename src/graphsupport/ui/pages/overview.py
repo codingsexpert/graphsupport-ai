@@ -83,6 +83,28 @@ def render_overview_page(settings: Settings) -> None:
                 st.toast("Seeded demo scenario successfully")
                 st.rerun()
 
+    # Quick Navigation Bar
+    st.markdown("##### Quick Navigation")
+    q_col1, q_col2, q_col3, q_col4 = st.columns(4)
+    with q_col1:
+        if st.button("Graph Explorer", use_container_width=True, key="btn_nav_graph"):
+            st.session_state["nav_page"] = "Graph Explorer"
+            st.rerun()
+    with q_col2:
+        if st.button("Support Chat", use_container_width=True, key="btn_nav_chat"):
+            st.session_state["nav_page"] = "Support Chat"
+            st.rerun()
+    with q_col3:
+        if st.button("Support Tickets", use_container_width=True, key="btn_nav_tickets"):
+            st.session_state["nav_page"] = "Tickets"
+            st.rerun()
+    with q_col4:
+        if st.button("System Health", use_container_width=True, key="btn_nav_health"):
+            st.session_state["nav_page"] = "System Health"
+            st.rerun()
+
+    st.divider()
+
     # Fetch real metrics
     metrics: dict[str, Any] | None = st.session_state.get("cached_overview_metrics")
     if metrics is None:

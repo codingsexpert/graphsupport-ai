@@ -16,7 +16,6 @@ def apply_custom_styles() -> None:
 
     html, body, [class*="css"] {
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        color: #0f172a;
     }
 
     code, pre {
@@ -34,7 +33,7 @@ def apply_custom_styles() -> None:
     .gs-header-wrapper {
         margin-bottom: 1.5rem;
         padding-bottom: 1rem;
-        border-bottom: 1px solid #e2e8f0;
+        border-bottom: 1px solid rgba(148, 163, 184, 0.2);
     }
 
     .gs-hero-badge {
@@ -44,61 +43,63 @@ def apply_custom_styles() -> None:
         border-radius: 6px;
         font-size: 0.75rem;
         font-weight: 600;
-        letter-spacing: 0.02em;
+        letter-spacing: 0.04em;
         text-transform: uppercase;
-        background: #f1f5f9;
-        color: #334155;
-        border: 1px solid #e2e8f0;
+        background: rgba(148, 163, 184, 0.12);
+        color: var(--text-color, #334155);
+        border: 1px solid rgba(148, 163, 184, 0.25);
         margin-bottom: 0.5rem;
     }
 
     .gs-title {
-        font-size: 1.75rem;
+        font-size: 1.85rem;
         font-weight: 700;
         letter-spacing: -0.02em;
-        color: #0f172a;
+        color: var(--text-color, #f8fafc);
         margin-bottom: 0.25rem;
         line-height: 1.25;
     }
 
     .gs-subtitle {
         font-size: 0.95rem;
-        color: #64748b;
+        color: var(--text-color, #94a3b8);
+        opacity: 0.8;
         margin-bottom: 0;
         line-height: 1.4;
     }
 
     /* Status & Metric Cards */
     .gs-card {
-        background: #ffffff;
-        border: 1px solid #e2e8f0;
+        background: rgba(148, 163, 184, 0.05);
+        border: 1px solid rgba(148, 163, 184, 0.2);
         border-radius: 8px;
         padding: 1rem 1.15rem;
-        box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.04);
         margin-bottom: 0.75rem;
     }
 
     .gs-card:hover {
-        border-color: #cbd5e1;
+        border-color: rgba(148, 163, 184, 0.4);
     }
 
     .gs-card-title {
         font-size: 0.8rem;
         font-weight: 500;
-        color: #64748b;
+        color: var(--text-color, #94a3b8);
+        opacity: 0.75;
         margin-bottom: 0.35rem;
     }
 
     .gs-card-value {
         font-size: 1.4rem;
         font-weight: 700;
-        color: #0f172a;
+        color: var(--text-color, #f8fafc);
         margin-bottom: 0.2rem;
     }
 
     .gs-card-desc {
         font-size: 0.8rem;
-        color: #64748b;
+        color: var(--text-color, #94a3b8);
+        opacity: 0.7;
         line-height: 1.35;
     }
 
@@ -111,9 +112,9 @@ def apply_custom_styles() -> None:
         border-radius: 4px;
         font-size: 0.75rem;
         font-weight: 500;
-        background: #ecfdf5;
-        color: #047857;
-        border: 1px solid #a7f3d0;
+        background: rgba(16, 185, 129, 0.15);
+        color: #10b981;
+        border: 1px solid rgba(16, 185, 129, 0.35);
     }
 
     .gs-pill-warning {
@@ -124,9 +125,22 @@ def apply_custom_styles() -> None:
         border-radius: 4px;
         font-size: 0.75rem;
         font-weight: 500;
-        background: #fffbeb;
-        color: #b45309;
-        border: 1px solid #fde68a;
+        background: rgba(245, 158, 11, 0.15);
+        color: #f59e0b;
+        border: 1px solid rgba(245, 158, 11, 0.35);
+    }
+
+    .gs-pill-info {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.15rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        font-weight: 500;
+        background: rgba(59, 130, 246, 0.15);
+        color: #3b82f6;
+        border: 1px solid rgba(59, 130, 246, 0.35);
     }
 
     .gs-pill-neutral {
@@ -137,15 +151,15 @@ def apply_custom_styles() -> None:
         border-radius: 4px;
         font-size: 0.75rem;
         font-weight: 500;
-        background: #f8fafc;
-        color: #475569;
-        border: 1px solid #e2e8f0;
+        background: rgba(148, 163, 184, 0.12);
+        color: var(--text-color, #94a3b8);
+        border: 1px solid rgba(148, 163, 184, 0.25);
     }
 
     /* Sidebar Status Box */
     .gs-sidebar-status {
-        background: #f8fafc;
-        border: 1px solid #e2e8f0;
+        background: rgba(148, 163, 184, 0.08);
+        border: 1px solid rgba(148, 163, 184, 0.2);
         border-radius: 6px;
         padding: 0.65rem 0.75rem;
         margin-top: 0.5rem;
@@ -157,7 +171,7 @@ def apply_custom_styles() -> None:
         align-items: center;
         gap: 0.45rem;
         margin-bottom: 0.3rem;
-        color: #334155;
+        color: var(--text-color, #f8fafc);
         font-weight: 500;
     }
 
@@ -187,7 +201,7 @@ def apply_custom_styles() -> None:
     /* Tabs Styling */
     .stTabs [data-baseweb="tab-list"] {
         gap: 1.5rem;
-        border-bottom: 1px solid #e2e8f0;
+        border-bottom: 1px solid rgba(148, 163, 184, 0.2);
     }
 
     .stTabs [data-baseweb="tab"] {
