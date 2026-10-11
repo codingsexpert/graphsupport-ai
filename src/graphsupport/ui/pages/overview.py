@@ -104,9 +104,10 @@ def render_overview_page(settings: Settings) -> None:
     with c3:
         st.metric(label="🎫 Total Support Tickets", value=metrics["total_tickets"])
     with c4:
+        raw_p = getattr(settings.llm_provider, "value", settings.llm_provider) or "Mock"
         st.metric(
             label="🤖 AI Provider",
-            value=settings.llm_provider.value.title(),
+            value=str(raw_p).title(),
             delta="Configured" if settings.is_llm_configured else "Mock Mode",
         )
 

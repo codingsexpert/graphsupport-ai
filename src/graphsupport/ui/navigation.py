@@ -71,13 +71,14 @@ def render_sidebar(settings: Settings, health: HealthStatus) -> str:
             neo4j_txt = "🟡 Configured"
         st.markdown(f"- **Neo4j**: {neo4j_txt}")
 
+        raw_llm = getattr(settings.llm_provider, "value", settings.llm_provider) or "Mock"
         llm_label = (
-            f"🟢 {settings.llm_provider.value.title()}"
+            f"🟢 {str(raw_llm).title()}"
             if settings.is_llm_configured
             else "🟡 Mock Mode"
         )
         st.markdown(f"- **AI Agent**: {llm_label}")
-        st.markdown("- **Active Phase**: `Phase 6: Dashboard`")
+        st.markdown("- **Active Phase**: `Phase 8: Evaluation & Demo`")
 
         st.divider()
         st.caption(f"Platform: {health.platform_info} | UTC: {health.timestamp[:19]}")
