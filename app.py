@@ -64,7 +64,7 @@ def main() -> None:
             "Context-aware customer support engine powered by Neo4j graph intelligence "
             "and LLM reasoning."
         ),
-        phase_name="Phase 6: Support Operations Dashboard",
+        phase_name="Phase 8: Evaluation, E2E Demo & Hackathon Readiness",
     )
 
     # 7. Route to selected page module

@@ -10,6 +10,11 @@ from typing import Any
 
 import streamlit as st
 
+from graphsupport.application.demo_seed import (
+    clear_hackathon_demo,
+    is_hackathon_demo_seeded,
+    seed_hackathon_demo,
+)
 from graphsupport.application.support_service import SupportService
 from graphsupport.config.settings import Settings
 from graphsupport.graph.driver import get_driver_manager
@@ -50,6 +55,34 @@ def render_overview_page(settings: Settings) -> None:
             "Please check credentials in `.env` or visit the **System Health** page."
         )
         return
+
+    # Hackathon Demo Quick-Action Panel
+    demo_seeded = is_hackathon_demo_seeded(service)
+    demo_c1, demo_c2 = st.columns([3, 1])
+    with demo_c1:
+        if demo_seeded:
+            st.success(
+                "🌱 **Hackathon Demo Scenario Active**: Persona **Sarah Chen** (`demo-cust-sarah`) "
+                "is seeded with ticket **demo-tkt-101** and failed password reset attempt."
+            )
+        else:
+            st.info(
+                "🎯 **Hackathon Demo Scenario Ready**: Seed the 2-conversation memory demo "
+                "(Sarah Chen, SmartMesh Gateway, failed reset attempt) with 1 click."
+            )
+    with demo_c2:
+        if demo_seeded:
+            if st.button("🧹 Reset Demo Data", use_container_width=True, key="btn_reset_demo"):
+                count = clear_hackathon_demo(service)
+                st.session_state.pop("cached_overview_metrics", None)
+                st.toast(f"Safely removed {count} demo nodes")
+                st.rerun()
+        else:
+            if st.button("🌱 Seed Demo Scenario", use_container_width=True, key="btn_seed_demo"):
+                seed_hackathon_demo(service)
+                st.session_state.pop("cached_overview_metrics", None)
+                st.toast("Seeded Sarah Chen demo scenario successfully!")
+                st.rerun()
 
     # Fetch real metrics (using session state caching to avoid queries on repeated reruns)
     metrics: dict[str, Any] | None = st.session_state.get("cached_overview_metrics")

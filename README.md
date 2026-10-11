@@ -17,6 +17,7 @@ GraphSupport AI is an enterprise customer support platform designed to remember 
 | **Phase 5** | **Context-Aware LLM Agent** | **Completed** | Configurable LLM provider (Gemini, OpenAI, Mock), 7 domain tools, grounded prompt templates, response validator, Streamlit AI Chat |
 | **Phase 6** | **Interactive Support Dashboard** | **Completed** | 10-page operations dashboard, customer 360, ticket lifecycle, interactive vis.js graph explorer, offline evaluation suite |
 | **Phase 7** | **Security Hardening & Production Polish** | **Completed** | Threat modeling, tenant isolation, prompt-injection scanner, tool deduplication, rate limiting, correlation IDs, 138 tests |
+| **Phase 8** | **Final Evaluation, E2E Demo & Hackathon Readiness** | **Completed** | 10-step E2E flow tests, 9-vector evaluation benchmark, Sarah Chen demo scenario seeder, CLI tooling, presentation materials |
 
 ---
 
@@ -247,21 +248,62 @@ Phase 6 provides a professional, operations-grade Streamlit dashboard structured
 
 ---
 
+---
+
+## 🚀 Phase 8: Final Evaluation, E2E Demo & Hackathon Readiness
+
+Phase 8 finalizes the platform for production evaluation, automated benchmarks, and hackathon demonstrations. For full presentation materials and the slide deck guide, see [docs/HACKATHON_DEMO.md](file:///Users/MukeshSingh/Desktop/graphsupport-ai/docs/HACKATHON_DEMO.md).
+
+### 1. Two-Conversation Reproducible Demo Scenario
+Demonstrates why persistent graph memory solves session amnesia:
+- **Conversation 1**: Customer Sarah Chen (`demo-cust-sarah`) reports login failure on SmartMesh Gateway Pro (`SM-GW-PRO`). Ticket `demo-tkt-101` is opened and an automated password reset link is attempted, which **fails** (HTTP 401 token expiration). Issue remains open.
+- **Conversation 2**: Sarah returns in a separate session saying: *"My account still isn't working."* The system retrieves the previous ticket and failed attempt from Neo4j memory, acknowledges the prior failure, and suggests higher-tier authentication diagnostics without repeating the failed step.
+
+```bash
+# Seed the demo scenario into Neo4j:
+python scripts/seed_demo.py
+
+# Check status:
+python scripts/seed_demo.py --status
+
+# Safely reset demo records only (deletes only nodes starting with 'demo-'):
+python scripts/seed_demo.py --reset
+```
+
+### 2. Deterministic 9-Vector Evaluation Suite
+Zero paid LLM tokens consumed. Evaluates the 9 core pillars:
+1. **Context Retrieval Relevance & Ticket Ranking** (Open tickets prioritized over closed)
+2. **Diagnostic Outcome Fidelity** (Failed steps preserved as `failed` with diagnostic warning flags)
+3. **Ticket Lifecycle Transitions** (`open` ➔ `in_progress` ➔ `resolved` ➔ `closed`)
+4. **Groundedness & Anti-Hallucination** (`OutputParser` detects claims without tool evidence)
+5. **Customer Data Isolation** (`ToolRegistry` blocks cross-tenant ticket operations)
+6. **Tool Argument Validation** (Cypher injection tokens and invalid entity IDs rejected)
+7. **Prompt Injection Defense** (Heuristic scanner flags overrides; system directives isolated)
+8. **Resilience & Privacy-Safe Logging** (Database passwords and cards redacted from logs)
+9. **Performance Latency** (In-memory context compilation under 5.0ms)
+
+```bash
+# Run the 9-vector evaluation benchmark:
+python -c "from graphsupport.application.evaluation import EvaluationRunner; import json; print(json.dumps(EvaluationRunner().run_all_evaluations().to_dict(), indent=2))"
+```
+
+---
+
 ## 🧪 Testing and Quality Assurance
 
 ### Run Unit and Integration Tests
 ```bash
-# Run all tests (138 passing unit + live integration tests)
+# Run all tests (139 passing unit + live integration tests)
 pytest -v
+
+# Run 10-step end-to-end workflow tests (unit + live Neo4j integration)
+pytest tests/unit/test_end_to_end_support_flow.py tests/integration/test_end_to_end_support_flow.py -v
 
 # Run Phase 7 security and hardening tests
 pytest tests/unit/test_security_hardening.py -v
 
-# Run Phase 6 dashboard unit tests
+# Run Phase 6 dashboard unit tests (including 9-vector evaluation benchmark)
 pytest tests/unit/test_phase6_dashboard.py -v
-
-# Run Phase 6 live Neo4j Aura integration test
-pytest tests/integration/test_phase6_live.py -v
 
 # Run Phase 5 Agent unit tests (provider, tools, agent orchestrator)
 pytest tests/unit/test_agent_*.py tests/unit/test_support_agent.py -v

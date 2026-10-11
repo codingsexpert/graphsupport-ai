@@ -32,19 +32,22 @@ def test_evaluation_runner_offline_benchmarks() -> None:
     runner = EvaluationRunner(service=None)
     report = runner.run_all_evaluations()
 
-    assert report.total_tests == 6
-    assert report.passed_tests == 6
+    assert report.total_tests == 9
+    assert report.passed_tests == 9
     assert report.overall_score == 1.0
     assert report.is_mocked is True
-    assert len(report.benchmark_items) == 6
+    assert len(report.benchmark_items) == 9
 
     # Verify key categories
     categories = {item.category for item in report.benchmark_items}
     assert "Memory Retrieval" in categories
     assert "Diagnostic Integrity" in categories
-    assert "Tool Safety" in categories
+    assert "Domain Integrity" in categories
     assert "Groundedness" in categories
+    assert "Security & Privacy" in categories
+    assert "Security & Validation" in categories
     assert "Security" in categories
+    assert "Resilience" in categories
     assert "Performance" in categories
 
 

@@ -88,16 +88,30 @@ pytest tests/unit/ -v
 - `test_graph_memory.py`: Relevance ranking and context builder.
 - `test_phase3_repositories.py`: Parameterized repository tests for Customer, Product, Ticket, Conversation, Troubleshooting.
 - `test_support_service.py`: Business workflow, validation, and authorization boundary tests.
+- `test_end_to_end_support_flow.py`: Complete 10-step customer support workflow unit tests.
 
 ### Run Live Neo4j Integration Tests
-Live tests target your configured Neo4j instance, test connectivity, and run full end-to-end workflows with isolated prefixes (`test-phase3-*`, `test-phase4-*`, `test-phase5-*`) and guaranteed cleanup:
+Live tests target your configured Neo4j instance, test connectivity, and run full end-to-end workflows with isolated prefixes (`test-phase3-*`, `test-phase4-*`, `test-phase5-*`, `test-e2e-*`) and guaranteed cleanup:
 ```bash
 pytest tests/integration/ -v
 ```
 Includes:
+- `test_end_to_end_support_flow.py`: Live 10-step end-to-end workflow verification on Neo4j Aura.
 - `test_phase6_live.py`: Tests live Overview metrics, Subgraph extraction, and live evaluation execution against Neo4j Aura.
 - `test_phase5_agent_live.py`: Tests complete agent request lifecycle against live Neo4j Aura.
 *(If Neo4j is unconfigured or unreachable, integration tests skip automatically with clear messaging).*
+
+### Seed or Reset Hackathon Demo Scenario
+```bash
+# Seed Sarah Chen login failure scenario:
+python scripts/seed_demo.py
+
+# Check status:
+python scripts/seed_demo.py --status
+
+# Safely clear demo records only:
+python scripts/seed_demo.py --reset
+```
 
 ---
 

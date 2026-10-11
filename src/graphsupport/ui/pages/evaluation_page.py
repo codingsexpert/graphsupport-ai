@@ -88,17 +88,30 @@ def render_evaluation_page(settings: Settings) -> None:
     st.divider()
 
     # Qualitative Benchmark Notes & Production Readiness Notice
-    st.markdown("#### 📋 Operational Observations & Limitations")
+    st.markdown("#### 📋 Operational Observations & Verification Pillars (Phase 8)")
     st.markdown(
         """
-        - **Grounding Fidelity**: Verified that `ContextBuilder` preserves diagnostic indicators
-          and strictly flags absent customer records rather than hallucinating defaults.
-        - **Outcome Invariance**: Confirmed that previously failed attempts remain strictly
-          flagged with `failed_attempt` warning indicators across restarts.
-        - **Tool Isolation**: Cross-customer ticket operations are blocked at the
-          application boundary.
-        - **Response Validation**: Claims of completed actions are rejected without tool execution.
-        - **Notice on Production Readiness**: While passing this offline benchmark is a strict
-          prerequisite, it does not replace human evaluation planned for Phase 7.
+        - **1. Context Retrieval Relevance**: Open tickets receive priority ranking
+          over closed records with explainable relevance breakdown.
+        - **2. Diagnostic Outcome Fidelity**: Previously failed attempts remain strictly
+          flagged with `failed_attempt` warning indicators.
+        - **3. Ticket Lifecycle Transitions**: Status modifications strictly conform to
+          `open`, `in_progress`, `resolved`, and `closed`.
+        - **4. Anti-Hallucination & Groundedness**: Unverified claims of ticket creation or
+          closure without tool evidence are rejected by `OutputParser`.
+        - **5. Tenant Isolation**: `ToolRegistry` enforces boundary checks preventing
+          cross-customer ticket operations.
+        - **6. Safe Tool Validation**: Entity IDs reject Cypher injection tokens,
+          control characters, and malformed inputs.
+        - **7. Prompt Injection Defense**: Heuristic scanner flags prompt override attempts,
+          and system directives remain authoritative.
+        - **8. Resilience & Safe Logging**: Database connection strings, passwords,
+          and sensitive cards are redacted from error logs.
+        - **9. Performance Latency**: In-memory retrieval and context compilation completes
+          well under threshold (<5.0ms).
+
+        **Hackathon & Production Notice**: While passing all 9 deterministic benchmarks
+        validates architectural safety and domain fidelity, real production deployment
+        requires OAuth2 identity provider integration and distributed rate limiting (Redis).
         """
     )

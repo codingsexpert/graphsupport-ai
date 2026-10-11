@@ -52,6 +52,6 @@ def test_live_phase6_dashboard_service_methods() -> None:
     # 5. Run Evaluation benchmarks against live service
     runner = EvaluationRunner(service=service)
     report = runner.run_all_evaluations()
-    assert report.total_tests == 6
-    assert report.passed_tests == 6
+    assert report.total_tests == 9
+    assert report.passed_tests == 9
     assert report.overall_score == 1.0

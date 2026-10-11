@@ -55,6 +55,7 @@ CREDIT_CARD_PATTERN = re.compile(r"\b(?:\d[ -]*?){13,16}\b")
 KEY_SECRET_PATTERN = re.compile(
     r"(?i)\b(password|secret|api[_-]?key|token)\b\s*[:=]\s*['\"]?([A-Za-z0-9_\-+=/]{6,})['\"]?"
 )
+CONNECTION_URI_PATTERN = re.compile(r"(?i)(neo4j(?:\+s|\+ssc)?://[^:]+:)([^@]+)(@)")
 
 
 def validate_entity_id(id_val: Any, field_name: str = "Identifier") -> str:
@@ -169,4 +170,5 @@ def redact_sensitive_text(text: str) -> str:
 
     sanitized = CREDIT_CARD_PATTERN.sub("[REDACTED_CARD]", text)
     sanitized = KEY_SECRET_PATTERN.sub(r"\1=[REDACTED]", sanitized)
+    sanitized = CONNECTION_URI_PATTERN.sub(r"\1[REDACTED]\3", sanitized)
     return sanitized

@@ -136,28 +136,33 @@ class OutputParser:
                 )
                 return False
 
-        # Check for claim that ticket was resolved
+        # Check for claim that ticket was resolved or closed
         resolved_claim = any(
             phrase in lower_text
             for phrase in [
                 "ticket has been resolved",
                 "i have resolved your ticket",
+                "resolved your ticket",
                 "ticket is now resolved",
+                "marked it resolved",
+                "marked as resolved",
+                "closed your ticket",
+                "ticket has been closed",
             ]
         )
         if resolved_claim:
             tool_resolved = any(
                 t.get("tool_name") == "update_ticket_status"
-                and t.get("args", {}).get("new_status") == "resolved"
+                and t.get("args", {}).get("new_status") in ("resolved", "closed")
                 and t.get("success")
                 for t in executed_tools
             )
             already_resolved = any(
-                rt.ticket.status.value == "resolved" for rt in context.ranked_tickets
+                rt.ticket.status.value in ("resolved", "closed") for rt in context.ranked_tickets
             )
             if not tool_resolved and not already_resolved:
                 logger.warning(
-                    "Model claimed ticket was resolved without tool or historical evidence"
+                    "Model claimed ticket was resolved/closed without tool or historical evidence"
                 )
                 return False
 

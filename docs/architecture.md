@@ -290,4 +290,38 @@ For full threat modeling and pre-production requirements, refer to [docs/securit
 - **Deduplication Safeguards**: `create_support_ticket` reuses existing active tickets with identical titles; `record_troubleshooting_attempt` detects duplicate step numbers and actions to prevent bloated diagnostic history.
 - **Correlation IDs & Execution Metrics**: Tool execution records capture duration (`duration_ms`) and trace correlation IDs (`req-*`).
 
+---
+
+## 8. Final Evaluation, E2E Workflow & Hackathon Readiness (Phase 8)
+
+For the complete pitch deck outline and presenter script, see [docs/HACKATHON_DEMO.md](file:///Users/MukeshSingh/Desktop/graphsupport-ai/docs/HACKATHON_DEMO.md).
+
+### A. Core 10-Step End-to-End Support Workflow
+Phase 8 formalizes and verifies the foundational customer support scenario end to end:
+1. **Customer & Product Identity**: Registration of customer and catalog device.
+2. **Support Ticket Creation**: Opening an active ticket linked to customer and product.
+3. **Troubleshooting Execution**: Recording sequential diagnostic attempts and outcomes (`failed`, `success`, `partial`).
+4. **Lifecycle State Persistence**: Preserving unresolved tickets in `open` status.
+5. **Session 1 Persistence**: Recording initial multi-turn transcripts in Neo4j.
+6. **Session 2 Initiation**: Starting a clean follow-up conversation session.
+7. **Graph Memory Retrieval**: Extracting relevant history, prior tickets, and failed attempt warning flags.
+8. **Context-Aware Reasoning**: Agent acknowledges prior failed actions and suggests alternative next steps without repeating failed interventions.
+9. **Anti-Hallucination Fact Checking**: Validator blocks claims of ticket closure without backing tools.
+10. **Tenant Boundary Isolation**: Another customer cannot view or modify the ticket.
+
+### B. 9-Vector Evaluation Suite (`graphsupport.application.evaluation`)
+The evaluation runner assesses 9 critical system vectors deterministically:
+- `Context Retrieval Relevance & Ticket Ranking`: Prioritizes open tickets over closed records.
+- `Diagnostic Outcome Fidelity`: Failed steps strictly generate `failed_attempt` flags.
+- `Ticket Status & Lifecycle Transition Validity`: Validates `open` ➔ `in_progress` ➔ `resolved` ➔ `closed`.
+- `Groundedness & Unsupported Claim Detection`: Detects unverified resolution claims.
+- `Customer Data Isolation & Tenant Boundaries`: Verifies cross-tenant barriers.
+- `Tool Argument Validation & Safe Execution`: Rejects Cypher injection tokens and invalid IDs.
+- `Prompt Injection Defense & Delimiter Isolation`: Scans for instruction overrides and isolates user input.
+- `Service Resilience & Privacy-Safe Error Handling`: Redacts connection strings and credit cards.
+- `Retrieval & Context Assembly Latency`: Bounded latency (<5.0ms) for graph compilation.
+
+### C. Hackathon Demo Seeding Architecture (`graphsupport.application.demo_seed`)
+Provides deterministic seeding of Sarah Chen (`demo-cust-sarah`), SmartMesh Gateway (`demo-prod-gateway`), Ticket #101 (`demo-tkt-101`), and Conversation 1 with failed password reset attempt. Features one-click UI setup and safe scoped reset (`MATCH (n) WHERE n.id STARTS WITH 'demo-' DETACH DELETE n`).
+
 
