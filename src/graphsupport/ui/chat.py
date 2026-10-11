@@ -1,11 +1,10 @@
-"""Streamlit UI component for Phase 5 Context-Aware AI Support Chat.
+"""Streamlit UI component for Context-Aware AI Support Chat.
 
 Provides an interactive chat workbench:
-- Selects development/demo customer within the authorized boundary.
+- Selects customer within the authorized boundary.
 - Interacts with SupportAgent grounded in persistent Neo4j graph memory.
 - Renders conversational messages with clear timestamps and sender badges.
 - Displays tool execution badges and audit history.
-- Displays helpful configuration state warnings when LLM_API_KEY is not set.
 - Executes strictly through application services with zero raw Cypher or provider logic in the UI.
 """
 
@@ -43,19 +42,11 @@ def _get_service(settings: Settings) -> SupportService | None:
 
 
 def render_phase5_support_chat(settings: Settings) -> None:
-    """Render the Phase 5 Context-Aware AI Support Chat component."""
-    st.subheader("Phase 5: Context-Aware AI Support Chat")
-    st.markdown(
-        """
-        Chat with **GraphSupport AI**, an intelligent support agent grounded in
-        persistent Neo4j graph memory, prior troubleshooting attempts, and authorized tools.
-        """
-    )
-
+    """Render the Context-Aware AI Support Chat component."""
     service = _get_service(settings)
     if not service:
         st.warning(
-            "⚠️ **Neo4j is not connected.** "
+            "Neo4j is not connected. "
             "Graph memory and chat persistence require an active database connection."
         )
         return
@@ -64,52 +55,50 @@ def render_phase5_support_chat(settings: Settings) -> None:
     try:
         customers = service.list_customers(limit=50)
     except Exception as err:
-        st.error(f"❌ Failed to load customers from Neo4j: {err}")
+        st.error(f"Failed to load customers from Neo4j: {err}")
         return
 
     if not customers:
-        st.info("ℹ️ No registered customers found. Please register a customer in Phase 3 Workbench.")
+        st.info("No registered customers found. Please register a customer in Customer Directory.")
         return
 
-    # Customer and Session Selector
-    top_col1, top_col2 = st.columns([2, 1])
+    # Customer Selector & Provider Badge
+    top_col1, top_col2 = st.columns([3, 1])
     with top_col1:
         cust_map = {f"{c.name} ({c.email}) [{c.id}]": c for c in customers}
         selected_cust_label = st.selectbox(
-            "Select Customer Persona (Identity Boundary)*",
+            "Customer Persona",
             options=list(cust_map.keys()),
             key="chat_customer_select",
         )
         selected_customer = cust_map[selected_cust_label]
 
-    # Check LLM Configuration State
     with top_col2:
         is_configured = settings.is_llm_configured
+        raw_p = getattr(settings.llm_provider, "value", settings.llm_provider) or "Mock"
         if is_configured:
-            st.success(
-                f"🟢 **Live LLM Active**\n\n"
-                f"Provider: `{settings.llm_provider}`\n\nModel: `{settings.llm_model}`"
+            prov_lbl = str(raw_p).title()
+            badge = (
+                f'<div style="padding-top: 1.8rem;">'
+                f'<span class="gs-pill-success">Active: {prov_lbl}</span></div>'
             )
+            st.markdown(badge, unsafe_allow_html=True)
             use_mock = False
         else:
-            st.warning("⚠️ **LLM Not Configured**\n\n`LLM_API_KEY` missing in `.env`")
-            use_mock = st.checkbox(
-                "Enable Demo Test Provider",
-                value=False,
-                help=(
-                    "Allows testing agent orchestration, memory, and persistence "
-                    "using a local mock provider."
-                ),
+            badge = (
+                '<div style="padding-top: 1.8rem;">'
+                '<span class="gs-pill-warning">Mock Mode</span></div>'
             )
+            st.markdown(badge, unsafe_allow_html=True)
+            use_mock = True
 
     # 2. Manage Active Conversation Session
     conv_key = f"active_conv_{selected_customer.id}"
     active_conv_id = st.session_state.get(conv_key)
 
-    # Allow creating new conversation session
     ctrl_col1, ctrl_col2 = st.columns([3, 1])
     with ctrl_col2:
-        if st.button("➕ Start New Conversation", use_container_width=True):
+        if st.button("New Session", use_container_width=True):
             try:
                 new_conv = service.start_conversation(
                     customer_id=selected_customer.id,
@@ -142,11 +131,10 @@ def render_phase5_support_chat(settings: Settings) -> None:
     with ctrl_col1:
         if customer_convs:
             c_options = {f"Session {c.id[:16]}... ({c.status})": c.id for c in customer_convs}
-            # Find index
             cur_ids = list(c_options.values())
             cur_idx = cur_ids.index(active_conv_id) if active_conv_id in cur_ids else 0
             sel_conv_label = st.selectbox(
-                "Active Conversation Session",
+                "Active Session",
                 options=list(c_options.keys()),
                 index=cur_idx,
             )
@@ -160,7 +148,7 @@ def render_phase5_support_chat(settings: Settings) -> None:
     with chat_container:
         if not messages:
             st.info(
-                f"💬 Started a new support session with **{selected_customer.name}**. "
+                f"Started a new support session with {selected_customer.name}. "
                 "Type a message below to begin troubleshooting."
             )
         else:
@@ -184,17 +172,11 @@ def render_phase5_support_chat(settings: Settings) -> None:
 
     if user_input:
         if not is_configured and not use_mock:
-            st.error(
-                "🛑 **Live LLM is not configured.** "
-                "To send messages to an AI model, set `LLM_API_KEY` in `.env` "
-                "or check 'Enable Demo Test Provider' above to test the orchestrator offline."
-            )
+            st.error("LLM is not configured. Set provider credentials in .env file.")
             return
 
-        # Initialize appropriate provider
         if use_mock:
             provider = MockLLMProvider()
-            st.info("ℹ️ Note: Processing request using local Test Provider simulation.")
         else:
             try:
                 provider = get_llm_provider(settings)
@@ -202,14 +184,13 @@ def render_phase5_support_chat(settings: Settings) -> None:
                 st.error(f"Configuration Error: {err}")
                 return
 
-        # Execute Agent turn
         agent = SupportAgent(
             support_service=service,
             llm_provider=provider,
             max_tool_iterations=4,
         )
 
-        with st.spinner("GraphSupport AI is retrieving graph memory and reasoning..."):
+        with st.spinner("Retrieving graph memory and reasoning..."):
             try:
                 response = agent.handle_message(
                     customer_id=selected_customer.id,
@@ -218,21 +199,21 @@ def render_phase5_support_chat(settings: Settings) -> None:
                 )
                 if response.tool_executions:
                     for t_exec in response.tool_executions:
-                        status_str = "✅ SUCCESS" if t_exec.success else "❌ FAILED"
-                        st.toast(f"Tool `{t_exec.tool_name}`: {status_str}")
+                        status_str = "SUCCESS" if t_exec.success else "FAILED"
+                        st.toast(f"Tool {t_exec.tool_name}: {status_str}")
                 st.rerun()
             except LLMAuthenticationError as err:
-                st.error(f"🛑 Provider Authentication Error: {err}")
+                st.error(f"Provider Authentication Error: {err}")
             except LLMRateLimitError as err:
-                st.warning(f"⏳ Rate Limit Exceeded: {err}")
+                st.warning(f"Rate Limit Exceeded: {err}")
             except LLMTimeoutError as err:
-                st.warning(f"⌛ Provider Request Timed Out: {err}")
+                st.warning(f"Provider Request Timed Out: {err}")
             except AuthorizationError as err:
-                st.error(f"🛑 Security Boundary Violation: {err}")
+                st.error(f"Security Boundary Violation: {err}")
             except ValidationError as err:
-                st.warning(f"⚠️ Input Validation: {err}")
+                st.warning(f"Input Validation: {err}")
             except GraphSupportError as err:
-                st.error(f"❌ Application Error: {err}")
+                st.error(f"Application Error: {err}")
             except Exception as err:
                 logger.exception("Unexpected error in chat UI: %s", err)
-                st.error(f"❌ Unexpected Error: {err}")
+                st.error(f"Unexpected Error: {err}")

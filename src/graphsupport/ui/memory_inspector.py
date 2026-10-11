@@ -19,7 +19,6 @@ from graphsupport.core.exceptions import (
     ValidationError,
 )
 from graphsupport.graph.driver import get_driver_manager
-from graphsupport.graph.models import TicketStatus, TroubleshootingOutcome
 from graphsupport.memory.models import CustomerMemoryContext, RetrievalLimits
 
 logger = logging.getLogger("graphsupport.ui.memory_inspector")
@@ -125,7 +124,7 @@ def render_phase4_memory_inspector(settings: Settings) -> None:
 
     # Retrieval Action Button
     retrieve_btn = st.button(
-        "🧠 Retrieve Customer Graph Memory", type="primary", use_container_width=True
+        "Retrieve Customer Graph Memory", type="primary", use_container_width=True
     )
 
     if retrieve_btn or st.session_state.get("last_inspected_cust") == selected_customer.id:
@@ -142,20 +141,20 @@ def render_phase4_memory_inspector(settings: Settings) -> None:
                     limits=limits,
                 )
             except AuthorizationError as err:
-                st.error(f"🛑 Authorization Error: {err}")
+                st.error(f"Authorization Error: {err}")
                 return
             except EntityNotFoundError as err:
-                st.error(f"🔍 Not Found: {err}")
+                st.error(f"Not Found: {err}")
                 return
             except ValidationError as err:
-                st.warning(f"⚠️ Validation Error: {err}")
+                st.warning(f"Validation Error: {err}")
                 return
             except RepositoryError as err:
-                st.error(f"❌ Neo4j Repository Failure: {err}")
+                st.error(f"Neo4j Repository Failure: {err}")
                 return
             except Exception as err:
                 logger.exception("Unexpected error during memory retrieval: %s", err)
-                st.error(f"❌ Unexpected Error: {err}")
+                st.error(f"Unexpected Error: {err}")
                 return
 
         # Display Assembled Memory Context
@@ -166,7 +165,7 @@ def _render_context_display(context: CustomerMemoryContext) -> None:
     """Render the structured CustomerMemoryContext with explanations and outcome badges."""
     meta = context.retrieval_metadata
     st.markdown("---")
-    st.markdown(f"### 📋 Memory Context for **{context.customer.name}** (`{context.customer.id}`)")
+    st.markdown(f"### Memory Context for **{context.customer.name}** (`{context.customer.id}`)")
 
     # Metrics Summary Bar
     m1, m2, m3, m4 = st.columns(4)
@@ -183,37 +182,29 @@ def _render_context_display(context: CustomerMemoryContext) -> None:
 
     # Missing Information & Warning Indicators
     if context.missing_information:
-        st.markdown("##### ⚠️ Missing Information & Diagnostic Flags")
+        st.markdown("##### Missing Information & Diagnostic Flags")
         tags = " ".join([f"`{flag}`" for flag in context.missing_information])
         st.markdown(tags)
 
     # Empty State Handling
     if not context.ranked_tickets:
         st.info(
-            "ℹ️ **No historical support tickets found.** "
+            "**No historical support tickets found.** "
             "This customer has no prior ticket history or matching records in Neo4j. "
             "A safe, empty memory structure was returned without synthetic data."
         )
     else:
-        st.markdown("#### 🎯 Deterministically Ranked Historical Tickets")
+        st.markdown("#### Ranked Historical Tickets")
         st.caption(
             "Tickets are ranked using explainable criteria: Active status, Explicit ID match, "
-            "Product match, Keyword overlap, Recency, and Failed troubleshooting weight. "
-            "Zero embeddings or opaque AI models are used in this phase."
+            "Product match, Keyword overlap, Recency, and Failed troubleshooting weight."
         )
 
         for idx, item in enumerate(context.ranked_tickets, 1):
             ticket = item.ticket
-            status_color = {
-                TicketStatus.OPEN: "🔵",
-                TicketStatus.IN_PROGRESS: "🟡",
-                TicketStatus.WAITING_ON_CUSTOMER: "🟠",
-                TicketStatus.RESOLVED: "🟢",
-                TicketStatus.CLOSED: "⚪",
-            }.get(ticket.status, "⚪")
-
+            stat_name = ticket.status.value.upper()
             expander_title = (
-                f"**#{idx} | {status_color} {ticket.title}** [`{ticket.id}`] "
+                f"#{idx} | [{stat_name}] {ticket.title} [`{ticket.id}`] "
                 f"— Score: **{item.relevance_score:.1f}**"
             )
             with st.expander(expander_title, expanded=(idx <= 2)):
@@ -238,49 +229,44 @@ def _render_context_display(context: CustomerMemoryContext) -> None:
                         st.markdown(f"- {factor}")
 
                 # Troubleshooting Attempts Section
-                st.markdown("##### 🛠️ Previous Troubleshooting Attempts")
+                st.markdown("##### Previous Troubleshooting Attempts")
                 if not item.troubleshooting_attempts:
                     st.caption("No troubleshooting steps recorded for this ticket.")
                 else:
                     for att in item.troubleshooting_attempts:
-                        outcome_badge = {
-                            TroubleshootingOutcome.FAILED: "🔴 **FAILED**",
-                            TroubleshootingOutcome.SUCCESS: "🟢 **SUCCESS**",
-                            TroubleshootingOutcome.PARTIAL: "🟠 **PARTIAL**",
-                            TroubleshootingOutcome.UNKNOWN: "⚪ **UNKNOWN**",
-                        }.get(att.outcome, str(att.outcome.value))
-
-                        st.markdown(f"- Step **{att.step_number}**: {att.action} → {outcome_badge}")
+                        outcome_badge = att.outcome.value.upper()
+                        st.markdown(
+                            f"- Step **{att.step_number}**: {att.action} → `[{outcome_badge}]`"
+                        )
                         if att.notes:
                             st.caption(f"  *Notes:* {att.notes}")
 
                 # Resolutions Section
-                st.markdown("##### 💡 Confirmed Resolutions")
+                st.markdown("##### Confirmed Resolutions")
                 if not item.resolutions:
                     st.caption("No formal resolutions recorded for this ticket.")
                 else:
                     for res in item.resolutions:
-                        v_badge = "✅ Verified" if res.verified else "⏳ Unverified"
+                        v_badge = "Verified" if res.verified else "Unverified"
                         st.markdown(
                             f"- **[{res.resolution_type.upper()}]** {res.summary} ({v_badge})"
                         )
 
     # Active Conversations
     if context.recent_conversations:
-        st.markdown("#### 💬 Associated Conversations")
+        st.markdown("#### Associated Conversations")
         for conv in context.recent_conversations:
             with st.expander(
                 f"Conversation `{conv.id}` ({conv.channel}) — {len(conv.messages)} messages"
             ):
                 for msg in conv.messages[-5:]:
-                    sender_icon = "👤" if msg.sender_type == "customer" else "🤖"
                     st.markdown(
-                        f"{sender_icon} **{msg.sender_type.title()}** "
+                        f"**{msg.sender_type.title()}** "
                         f"({msg.timestamp.strftime('%H:%M:%S')}): {msg.content}"
                     )
 
     # Bounded Serializable JSON Inspector
-    with st.expander("🔍 View Raw Serializable Context JSON (LLM Prompt Ready)"):
+    with st.expander("View Raw Serializable Context JSON"):
         st.caption(
             "This structured dictionary is serializable and bounded by RetrievalLimits. "
             "In Phase 5, this exact object will be injected into LLM system prompts."

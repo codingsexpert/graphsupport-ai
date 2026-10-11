@@ -135,7 +135,7 @@ def _generate_vis_html(nodes: list[dict], edges: list[dict]) -> str:
 
 def render_graph_explorer_page(settings: Settings) -> None:
     """Render the Graph Explorer visualization page."""
-    st.subheader("🕸️ Neo4j Knowledge Graph Explorer")
+    st.subheader("Knowledge Graph Explorer")
     st.caption(
         "Interactive topology visualizer traversing real relationships across Customers, Products, "
         "Support Tickets, Troubleshooting Steps, Resolutions, and Conversations."
@@ -143,7 +143,7 @@ def render_graph_explorer_page(settings: Settings) -> None:
 
     service = _get_service(settings)
     if not service:
-        st.warning("⚠️ **Neo4j is not connected.** Graph visualization is unavailable.")
+        st.warning("**Neo4j is not connected.** Graph visualization is unavailable.")
         return
 
     # Scope Selection Controls
@@ -191,7 +191,7 @@ def render_graph_explorer_page(settings: Settings) -> None:
             max_nodes=max_nodes,
         )
     except Exception as err:
-        st.error(f"❌ Failed to query graph topology: {err}")
+        st.error(f"Failed to query graph topology: {err}")
         return
 
     nodes = subgraph.get("nodes", [])
@@ -207,7 +207,7 @@ def render_graph_explorer_page(settings: Settings) -> None:
         )
 
     if not nodes:
-        st.info("ℹ️ No nodes returned for the selected graph focus.")
+        st.info("No nodes returned for the selected graph focus.")
         return
 
     st.markdown(f"**Loaded Subgraph**: {len(nodes)} nodes • {len(edges)} relationships")
@@ -217,7 +217,7 @@ def render_graph_explorer_page(settings: Settings) -> None:
     components.html(html_content, height=500)
 
     # Structured Table Fallback
-    with st.expander("📊 Inspect Raw Subgraph Nodes & Edges"):
+    with st.expander("Inspect Raw Subgraph Nodes & Edges"):
         tab_nodes, tab_edges = st.tabs(["Nodes Table", "Edges Table"])
         with tab_nodes:
             n_table = [{"ID": n["id"], "Type": n["type"], "Label": n["label"]} for n in nodes]

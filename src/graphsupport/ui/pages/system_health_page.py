@@ -18,7 +18,7 @@ logger = logging.getLogger("graphsupport.ui.pages.system_health")
 
 def render_system_health_page(settings: Settings) -> None:
     """Render the System Health diagnostic dashboard."""
-    st.subheader("🩺 System Health & Infrastructure Diagnostics")
+    st.subheader("System Health & Diagnostics")
     st.caption(
         "Audit core application runtime readiness, Neo4j connection pooling, schema constraints, "
         "and AI provider configuration without exposing secrets or credentials."
@@ -27,7 +27,7 @@ def render_system_health_page(settings: Settings) -> None:
     # 1. Health Status Overview
     h_col1, h_col2 = st.columns([3, 1])
     with h_col2:
-        verify_db_live = st.button("⚡ Test Live Connection", use_container_width=True)
+        verify_db_live = st.button("Test Live Connection", use_container_width=True)
 
     # Cache health in session state unless explicit test is requested
     if verify_db_live or "cached_health_status" not in st.session_state:
@@ -76,12 +76,12 @@ def render_system_health_page(settings: Settings) -> None:
     st.divider()
 
     # 2. Neo4j Operations & Schema Inspection
-    st.markdown("### 🗄️ Neo4j Database & Schema Operations")
+    st.markdown("### Neo4j Database & Schema Operations")
     s_col1, s_col2 = st.columns(2)
 
     with s_col1:
         with st.container(border=True):
-            st.markdown("##### ⚡ Schema Constraints & Indexes")
+            st.markdown("##### Schema Constraints & Indexes")
             st.caption(
                 "Apply idempotent uniqueness constraints and index definitions via "
                 "`initialize_schema`."
@@ -104,7 +104,7 @@ def render_system_health_page(settings: Settings) -> None:
 
     with s_col2:
         with st.container(border=True):
-            st.markdown("##### 🔍 Inspect Existing Graph Schema")
+            st.markdown("##### Inspect Existing Graph Schema")
             st.caption("Query current database constraints and index metadata.")
             if st.button(
                 "Inspect Active Constraints", use_container_width=True, key="btn_inspect_schema"
@@ -127,7 +127,7 @@ def render_system_health_page(settings: Settings) -> None:
     st.divider()
 
     # 3. Safe Configuration Audit
-    st.markdown("### 🔒 Safe Configuration Audit")
+    st.markdown("### Safe Configuration Audit")
     safe_summary = settings.safe_summary()
     st.dataframe(
         [{"Parameter": k, "Configured Value": str(v)} for k, v in safe_summary.items()],

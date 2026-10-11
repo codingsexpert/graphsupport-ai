@@ -1,4 +1,4 @@
-"""Support Tickets dashboard page for GraphSupport AI (Phase 6).
+"""Support Tickets dashboard page for GraphSupport AI.
 
 Provides ticket directory, status filtering, search, quick ticket creation,
 and links to the dedicated Ticket Details view.
@@ -30,7 +30,7 @@ def _get_service(settings: Settings) -> SupportService | None:
 
 def render_tickets_page(settings: Settings) -> None:
     """Render the support tickets dashboard page."""
-    st.subheader("🎫 Support Tickets Queue")
+    st.subheader("Support Tickets")
     st.caption(
         "Manage, filter, and track technical support cases linked to customers, "
         "hardware products, and defect classifications."
@@ -38,10 +38,10 @@ def render_tickets_page(settings: Settings) -> None:
 
     service = _get_service(settings)
     if not service:
-        st.warning("⚠️ **Neo4j is not connected.** Ticket operations are disabled.")
+        st.warning("Neo4j is not connected. Ticket operations are disabled.")
         return
 
-    tab1, tab2 = st.tabs(["📋 Ticket Queue", "➕ Open New Ticket"])
+    tab1, tab2 = st.tabs(["Ticket Queue", "Open Ticket"])
 
     # -------------------------------------------------------------------------
     # TAB 1: Queue & Filtering
@@ -77,41 +77,33 @@ def render_tickets_page(settings: Settings) -> None:
             tickets = [t for t in tickets if sq in t.id.lower() or sq in t.title.lower()]
 
         if not tickets:
-            st.info("ℹ️ No support tickets found matching the selected criteria.")
+            st.info("No support tickets found matching the selected criteria.")
         else:
             for t in tickets:
-                status_icon = (
-                    "🟢"
-                    if t.status.value == "resolved"
-                    else "🔵"
-                    if t.status.value == "in_progress"
-                    else "⚪"
-                    if t.status.value == "closed"
-                    else "🟡"
-                )
+                status_str = t.status.value.replace("_", " ").upper()
                 with st.container(border=True):
                     row_c1, row_c2, row_c3 = st.columns([4, 2, 1])
                     with row_c1:
-                        st.markdown(f"**{status_icon} {t.title}**")
+                        st.markdown(f"**{t.title}**")
                         st.caption(
                             f"ID: `{t.id}` | Customer: `{t.customer_id or 'Unknown'}` | "
                             f"Product: `{t.product_id or 'Unknown'}`"
                         )
                     with row_c2:
-                        st.markdown(f"**Status**: `{t.status.value.upper()}`")
+                        st.markdown(f"**Status**: `{status_str}`")
                         upd_time = t.updated_at.strftime("%Y-%m-%d %H:%M")
                         st.caption(f"Priority: `{t.priority.upper()}` | Updated: {upd_time}")
                     with row_c3:
                         if st.button("Details", key=f"btn_det_{t.id}", use_container_width=True):
                             st.session_state["selected_ticket_id"] = t.id
-                            st.session_state["nav_page"] = "🔍 Ticket Details"
+                            st.session_state["nav_page"] = "Ticket Details"
                             st.rerun()
 
     # -------------------------------------------------------------------------
     # TAB 2: Open New Ticket
     # -------------------------------------------------------------------------
     with tab2:
-        st.markdown("#### Open a New Support Ticket")
+        st.markdown("#### Open Support Ticket")
         try:
             customers = service.list_customers(limit=100)
             products = service.list_products(limit=100)
@@ -120,7 +112,7 @@ def render_tickets_page(settings: Settings) -> None:
             return
 
         if not customers or not products:
-            st.warning("⚠️ At least one customer and product must exist before opening tickets.")
+            st.warning("At least one customer and product must exist before opening tickets.")
         else:
             cust_dict = {f"{c.name} ({c.id})": c.id for c in customers}
             prod_dict = {f"{p.name} (SKU: {p.sku})": p.id for p in products}
@@ -132,7 +124,7 @@ def render_tickets_page(settings: Settings) -> None:
                     "Ticket Title / Summary", placeholder="Device repeatedly disconnects from WiFi"
                 )
                 t_desc = st.text_area(
-                    "Detailed Problem Description",
+                    "Problem Description",
                     placeholder="Device drops offline every 2 hours after firmware upgrade...",
                 )
                 t_prio = st.selectbox(
@@ -154,10 +146,9 @@ def render_tickets_page(settings: Settings) -> None:
                                 description=t_desc.strip(),
                                 priority=t_prio,
                             )
-                            st.success(f"✅ Ticket opened: **{ticket.title}** (ID: `{ticket.id}`)")
+                            st.success(f"Ticket opened: **{ticket.title}** (ID: `{ticket.id}`)")
                             st.session_state.pop("cached_overview_metrics", None)
                             st.session_state["selected_ticket_id"] = ticket.id
                         except ValidationError as err:
-                            st.warning(f"⚠️ Validation error: {err}")
-                        except Exception as err:
-                            st.error(f"❌ Failed to open ticket: {err}")
+                            st.warning(f"Validation error: {err}")
+                            st.error(f"Failed to open ticket: {err}")

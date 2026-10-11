@@ -29,7 +29,7 @@ def _get_service(settings: Settings) -> SupportService | None:
 
 def render_ticket_details_page(settings: Settings) -> None:
     """Render the comprehensive ticket details and troubleshooting timeline view."""
-    st.subheader("🔍 Ticket 360 & Diagnostic Timeline")
+    st.subheader("Ticket 360 & Diagnostic Timeline")
     st.caption(
         "Inspect ticket graph topology, diagnostic troubleshooting attempts, "
         "outcome fidelity, verified resolutions, and workflow transitions."
@@ -37,7 +37,7 @@ def render_ticket_details_page(settings: Settings) -> None:
 
     service = _get_service(settings)
     if not service:
-        st.warning("⚠️ **Neo4j is not connected.** Ticket details are disabled.")
+        st.warning("**Neo4j is not connected.** Ticket details are disabled.")
         return
 
     # Select / Lookup Ticket
@@ -47,7 +47,7 @@ def render_ticket_details_page(settings: Settings) -> None:
     )
 
     if not ticket_id_input.strip():
-        st.info("ℹ️ Please enter a Ticket ID above or select one from the Tickets queue.")
+        st.info("Please enter a Ticket ID above or select one from the Tickets queue.")
         return
 
     tid = ticket_id_input.strip()
@@ -58,7 +58,7 @@ def render_ticket_details_page(settings: Settings) -> None:
         return
 
     if not details:
-        st.error(f"❌ Ticket with ID `{tid}` was not found in Neo4j.")
+        st.error(f"Ticket with ID `{tid}` was not found in Neo4j.")
         return
 
     ticket = details.ticket
@@ -69,19 +69,20 @@ def render_ticket_details_page(settings: Settings) -> None:
     resolutions = details.resolutions
 
     # Ticket Header Card
-    status_icon = (
-        "🟢"
+    status_pill_class = (
+        "gs-pill-success"
         if ticket.status.value == "resolved"
-        else "🔵"
+        else "gs-pill-info"
         if ticket.status.value == "in_progress"
-        else "⚪"
-        if ticket.status.value == "closed"
-        else "🟡"
+        else "gs-pill-warning"
     )
 
     with st.container(border=True):
-        st.markdown(f"### {status_icon} {ticket.title}")
         stat_val = ticket.status.value.upper()
+        st.markdown(
+            f"### {ticket.title} <span class='{status_pill_class}'>{stat_val}</span>",
+            unsafe_allow_html=True,
+        )
         prio_val = ticket.priority.upper()
         st.caption(f"Ticket ID: `{ticket.id}` | Priority: `{prio_val}` | Status: `{stat_val}`")
         st.markdown(f"**Description**: {ticket.description}")
@@ -93,7 +94,7 @@ def render_ticket_details_page(settings: Settings) -> None:
     c_col1, c_col2, c_col3 = st.columns(3)
     with c_col1:
         with st.container(border=True):
-            st.markdown("##### 👤 Customer")
+            st.markdown("##### Customer")
             if customer:
                 st.markdown(f"**{customer.name}**")
                 st.caption(f"ID: `{customer.id}`\nTier: `{customer.tier.upper()}`")
@@ -102,7 +103,7 @@ def render_ticket_details_page(settings: Settings) -> None:
 
     with c_col2:
         with st.container(border=True):
-            st.markdown("##### 📦 Affected Product")
+            st.markdown("##### Affected Product")
             if product:
                 st.markdown(f"**{product.name}**")
                 st.caption(f"SKU: `{product.sku}` | Ver: `{product.version}`")
@@ -111,7 +112,7 @@ def render_ticket_details_page(settings: Settings) -> None:
 
     with c_col3:
         with st.container(border=True):
-            st.markdown("##### ⚠️ Tracked Defect / Issue")
+            st.markdown("##### Tracked Defect / Issue")
             if issue:
                 st.markdown(f"**{issue.title}**")
                 st.caption(f"ID: `{issue.id}` | Sev: `{issue.severity.upper()}`")
@@ -121,7 +122,7 @@ def render_ticket_details_page(settings: Settings) -> None:
     st.divider()
 
     # Workflow Status Transition
-    st.markdown("#### 🔄 Workflow Status Transition")
+    st.markdown("#### Workflow Status Transition")
     tr_col1, tr_col2 = st.columns([2, 1])
     with tr_col1:
         status_options = [s.value for s in TicketStatus]
@@ -137,34 +138,34 @@ def render_ticket_details_page(settings: Settings) -> None:
         confirm_transition = st.checkbox("Confirm status transition", key="chk_confirm_status")
         if st.button("Apply Status Change", use_container_width=True, key="btn_apply_status"):
             if not confirm_transition:
-                st.warning("⚠️ Please check 'Confirm status transition' first.")
+                st.warning("Please check 'Confirm status transition' first.")
             elif target_status == ticket.status.value:
                 st.info("Status is already set to this value.")
             else:
                 try:
                     updated = service.transition_ticket_status(ticket.id, target_status)
-                    st.success(f"✅ Ticket transitioned to `{updated.status.value.upper()}`")
+                    st.success(f"Ticket transitioned to `{updated.status.value.upper()}`")
                     st.session_state.pop("cached_overview_metrics", None)
                     st.rerun()
                 except Exception as err:
-                    st.error(f"❌ Failed to update status: {err}")
+                    st.error(f"Failed to update status: {err}")
 
     st.divider()
 
     # Troubleshooting Timeline
-    st.markdown("#### 🔧 Diagnostic Troubleshooting Timeline")
+    st.markdown("#### Diagnostic Troubleshooting Timeline")
     if not steps:
-        st.info("ℹ️ No troubleshooting attempts logged yet for this ticket.")
+        st.info("No troubleshooting attempts logged yet for this ticket.")
     else:
         for step in steps:
             outcome_badge = (
-                "🟢 SUCCESS"
+                "SUCCESS"
                 if step.outcome.value == "success"
-                else "🔴 FAILED"
+                else "FAILED"
                 if step.outcome.value == "failed"
-                else "🟡 PARTIAL"
+                else "PARTIAL"
                 if step.outcome.value == "partial"
-                else "⚪ UNKNOWN"
+                else "UNKNOWN"
             )
             with st.container(border=True):
                 st.markdown(f"**Step {step.step_number}: {step.action}** — `{outcome_badge}`")
@@ -175,7 +176,7 @@ def render_ticket_details_page(settings: Settings) -> None:
                     st.markdown(f"> *Notes*: {step.notes}")
 
     # Add Troubleshooting Step Form
-    with st.expander("➕ Log New Diagnostic Troubleshooting Attempt"):
+    with st.expander("Log New Diagnostic Troubleshooting Attempt"):
         with st.form("form_log_step", clear_on_submit=True):
             next_step_num = len(steps) + 1
             s_num = st.number_input("Step Number", min_value=1, value=next_step_num)
@@ -210,20 +211,18 @@ def render_ticket_details_page(settings: Settings) -> None:
                             previous_step_id=prev_id,
                         )
                         out_lbl = recorded.outcome.value.upper()
-                        st.success(
-                            f"✅ Step {recorded.step_number} recorded with outcome `{out_lbl}`"
-                        )
+                        st.success(f"Step {recorded.step_number} recorded with outcome `{out_lbl}`")
                         st.session_state.pop("cached_overview_metrics", None)
                         st.rerun()
                     except Exception as err:
-                        st.error(f"❌ Failed to record step: {err}")
+                        st.error(f"Failed to record step: {err}")
 
     st.divider()
 
     # Resolutions
-    st.markdown("#### 🏆 Verified Resolutions")
+    st.markdown("#### Verified Resolutions")
     if not resolutions:
-        st.info("ℹ️ No verified resolutions recorded yet.")
+        st.info("No verified resolutions recorded yet.")
     else:
         for res in resolutions:
             with st.container(border=True):
@@ -232,7 +231,7 @@ def render_ticket_details_page(settings: Settings) -> None:
                 st.caption(f"ID: `{res.id}` | Type: {res.resolution_type} | {r_dt}")
 
     # Add Resolution Form
-    with st.expander("➕ Record Verified Ticket Resolution"):
+    with st.expander("Record Verified Ticket Resolution"):
         with st.form("form_record_resolution", clear_on_submit=True):
             r_sum = st.text_area(
                 "Resolution Summary",
@@ -256,8 +255,8 @@ def render_ticket_details_page(settings: Settings) -> None:
                             resolution_type=r_type,
                             verified=r_ver,
                         )
-                        st.success(f"✅ Resolution saved (ID: `{res.id}`)")
+                        st.success(f"Resolution saved (ID: `{res.id}`)")
                         st.session_state.pop("cached_overview_metrics", None)
                         st.rerun()
                     except Exception as err:
-                        st.error(f"❌ Failed to record resolution: {err}")
+                        st.error(f"Failed to record resolution: {err}")

@@ -1,4 +1,4 @@
-"""Product management operations page for GraphSupport AI (Phase 6).
+"""Product management operations page for GraphSupport AI.
 
 Provides product catalog inspection, product lookup, customer-product linking,
 and validated product registration forms.
@@ -29,17 +29,17 @@ def _get_service(settings: Settings) -> SupportService | None:
 
 def render_products_page(settings: Settings) -> None:
     """Render the product management dashboard page."""
-    st.subheader("📦 Product Catalog & Relationships")
+    st.subheader("Product Catalog")
     st.caption(
         "Manage hardware catalog devices, connected systems, and customer-product ownership."
     )
 
     service = _get_service(settings)
     if not service:
-        st.warning("⚠️ **Neo4j is not connected.** Product operations are disabled.")
+        st.warning("Neo4j is not connected. Product operations are disabled.")
         return
 
-    tab1, tab2, tab3 = st.tabs(["📋 Product Catalog", "🔗 Product Linkages", "➕ Register Product"])
+    tab1, tab2, tab3 = st.tabs(["Catalog", "Customer Linkages", "Register Product"])
 
     # -------------------------------------------------------------------------
     # TAB 1: Catalog
@@ -53,7 +53,7 @@ def render_products_page(settings: Settings) -> None:
             return
 
         if not products:
-            st.info("ℹ️ No catalog products found. Use the 'Register Product' tab to create one.")
+            st.info("No catalog products found. Use 'Register Product' tab to add a device.")
         else:
             table_data = []
             for p in products:
@@ -73,9 +73,7 @@ def render_products_page(settings: Settings) -> None:
     # -------------------------------------------------------------------------
     with tab2:
         st.markdown("#### Associate Customer with Product")
-        st.caption(
-            "Links a customer to a hardware unit in Neo4j via `(:Customer)-[:USES]->(:Product)`."
-        )
+        st.caption("Links a customer to a hardware unit in the knowledge graph.")
 
         try:
             customers = service.list_customers(limit=100)
@@ -85,7 +83,7 @@ def render_products_page(settings: Settings) -> None:
             return
 
         if not customers or not products:
-            st.warning("⚠️ Requires at least one customer and one product to create linkages.")
+            st.warning("Requires at least one customer and one product to create linkages.")
         else:
             cust_dict = {f"{c.name} ({c.id})": c.id for c in customers}
             prod_dict = {f"{p.name} (SKU: {p.sku})": p.id for p in products}
@@ -105,20 +103,20 @@ def render_products_page(settings: Settings) -> None:
                             customer_id=c_id, product_id=p_id
                         )
                         if ok:
-                            st.success("✅ Successfully linked customer to product!")
+                            st.success("Successfully linked customer to product.")
                             st.session_state.pop("cached_overview_metrics", None)
                         else:
-                            st.info("Linkage already existed or was idempotent.")
+                            st.info("Linkage already existed.")
                     except (ValidationError, EntityNotFoundError) as err:
-                        st.warning(f"⚠️ {err}")
+                        st.warning(str(err))
                     except Exception as err:
-                        st.error(f"❌ Failed to link: {err}")
+                        st.error(f"Failed to link: {err}")
 
     # -------------------------------------------------------------------------
     # TAB 3: Register Product
     # -------------------------------------------------------------------------
     with tab3:
-        st.markdown("#### Register / Upsert Hardware Product")
+        st.markdown("#### Register Hardware Product")
         with st.form("form_register_product", clear_on_submit=True):
             p_name = st.text_input("Product Name", placeholder="Smart Gateway X100")
             p_sku = st.text_input("SKU / Model Number", placeholder="GW-X100-PRO")
@@ -139,9 +137,9 @@ def render_products_page(settings: Settings) -> None:
                             category=p_cat,
                             version=p_ver.strip(),
                         )
-                        st.success(f"✅ Saved **{prod.name}** (SKU: `{prod.sku}`, ID: `{prod.id}`)")
+                        st.success(f"Saved **{prod.name}** (SKU: `{prod.sku}`, ID: `{prod.id}`)")
                         st.session_state.pop("cached_overview_metrics", None)
                     except ValidationError as err:
-                        st.warning(f"⚠️ Validation error: {err}")
+                        st.warning(f"Validation error: {err}")
                     except Exception as err:
-                        st.error(f"❌ Failed to register product: {err}")
+                        st.error(f"Failed to register product: {err}")

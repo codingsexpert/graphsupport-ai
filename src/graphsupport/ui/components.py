@@ -12,13 +12,19 @@ from graphsupport.config.settings import Settings
 from graphsupport.core.health import HealthStatus
 
 
-def render_header(title: str, subtitle: str, phase_name: str) -> None:
-    """Render the application hero section."""
+def render_header(
+    title: str,
+    subtitle: str,
+    badge: str = "AI Support Intelligence",
+) -> None:
+    """Render the clean application hero section."""
     st.markdown(
         f"""
-        <div class="gs-hero-badge">Stage: {phase_name}</div>
-        <div class="gs-title">{title}</div>
-        <div class="gs-subtitle">{subtitle}</div>
+        <div class="gs-header-wrapper">
+            <span class="gs-hero-badge">{badge}</span>
+            <div class="gs-title">{title}</div>
+            <div class="gs-subtitle">{subtitle}</div>
+        </div>
         """,
         unsafe_allow_html=True,
     )
@@ -107,7 +113,7 @@ def render_database_control_panel(settings: Settings) -> None:
     col1, col2 = st.columns(2)
 
     with col1:
-        if st.button("🔌 Verify Live Connection", use_container_width=True):
+        if st.button("Verify Live Connection", use_container_width=True):
             with st.spinner("Connecting to Neo4j..."):
                 try:
                     from graphsupport.graph.driver import get_driver_manager
@@ -121,7 +127,7 @@ def render_database_control_panel(settings: Settings) -> None:
                     st.error(f"Connection verification failed: {type(err).__name__}: {err}")
 
     with col2:
-        if st.button("⚡ Initialize Graph Schema (Idempotent)", use_container_width=True):
+        if st.button("Initialize Graph Schema (Idempotent)", use_container_width=True):
             with st.spinner("Applying constraints and indexes..."):
                 try:
                     from graphsupport.graph.driver import get_driver_manager

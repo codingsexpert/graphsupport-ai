@@ -1,6 +1,6 @@
-"""GraphSupport AI - Main Streamlit Application Entrypoint (Phase 6).
+"""GraphSupport AI - Main Streamlit Application Entrypoint.
 
-Modular dashboard router providing navigation across all 10 operations pages:
+Modular dashboard router providing clean navigation across operations pages:
 1. Overview
 2. Support Chat
 3. Customers
@@ -42,8 +42,8 @@ def main() -> None:
 
     # 2. Configure Streamlit page layout
     st.set_page_config(
-        page_title=f"{settings.app_name} - Support Operations Dashboard",
-        page_icon="🕸️",
+        page_title=f"{settings.app_name} - Support Operations",
+        page_icon="⚡",
         layout="wide",
         initial_sidebar_state="expanded",
     )
@@ -62,31 +62,31 @@ def main() -> None:
         title="GraphSupport AI",
         subtitle=(
             "Context-aware customer support engine powered by Neo4j graph intelligence "
-            "and LLM reasoning."
+            "and AI reasoning."
         ),
-        phase_name="Phase 8: Evaluation, E2E Demo & Hackathon Readiness",
+        badge="Enterprise Support Intelligence",
     )
 
     # 7. Route to selected page module
-    if selected_page == "📊 Overview":
+    if selected_page == "Overview":
         render_overview_page(settings)
-    elif selected_page == "💬 Support Chat":
+    elif selected_page == "Support Chat":
         render_chat_page(settings)
-    elif selected_page == "👥 Customers":
+    elif selected_page == "Customers":
         render_customers_page(settings)
-    elif selected_page == "📦 Products":
+    elif selected_page == "Products":
         render_products_page(settings)
-    elif selected_page == "🎫 Tickets":
+    elif selected_page == "Tickets":
         render_tickets_page(settings)
-    elif selected_page == "🔍 Ticket Details":
+    elif selected_page == "Ticket Details":
         render_ticket_details_page(settings)
-    elif selected_page == "📜 Conversation History":
+    elif selected_page == "Conversation History":
         render_conversations_page(settings)
-    elif selected_page == "🕸️ Graph Explorer":
+    elif selected_page == "Graph Explorer":
         render_graph_explorer_page(settings)
-    elif selected_page == "🩺 System Health":
+    elif selected_page == "System Health":
         render_system_health_page(settings)
-    elif selected_page == "📈 Evaluation":
+    elif selected_page == "Evaluation":
         render_evaluation_page(settings)
     else:
         render_overview_page(settings)

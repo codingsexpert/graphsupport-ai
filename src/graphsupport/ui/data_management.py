@@ -57,11 +57,11 @@ def render_phase3_data_management(settings: Settings) -> None:
 
     tab1, tab2, tab3, tab4, tab5 = st.tabs(
         [
-            "👤 Customers",
-            "📦 Products",
-            "🎫 Tickets & Issues",
-            "💬 Conversations",
-            "🛠️ Troubleshooting & Resolutions",
+            "Customers",
+            "Products",
+            "Tickets & Issues",
+            "Conversations",
+            "Troubleshooting & Resolutions",
         ]
     )
 

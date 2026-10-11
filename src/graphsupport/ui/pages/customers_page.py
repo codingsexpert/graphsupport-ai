@@ -1,4 +1,4 @@
-"""Customer management operations page for GraphSupport AI (Phase 6).
+"""Customer management operations page for GraphSupport AI.
 
 Provides customer directory, ID search, 360-degree customer context inspection
 (products, tickets, conversations), and validated registration forms.
@@ -29,7 +29,7 @@ def _get_service(settings: Settings) -> SupportService | None:
 
 def render_customers_page(settings: Settings) -> None:
     """Render the customer management dashboard page."""
-    st.subheader("👥 Customer Directory & Context")
+    st.subheader("Customer Directory")
     st.caption(
         "Manage registered customers, inspect products, review historical support tickets, "
         "and track multi-session conversation history."
@@ -37,12 +37,10 @@ def render_customers_page(settings: Settings) -> None:
 
     service = _get_service(settings)
     if not service:
-        st.warning("⚠️ **Neo4j is not connected.** Customer operations are disabled.")
+        st.warning("Neo4j is not connected. Customer operations are disabled.")
         return
 
-    tab1, tab2, tab3 = st.tabs(
-        ["📋 Customer Directory", "🔍 Customer Details", "➕ Register Customer"]
-    )
+    tab1, tab2, tab3 = st.tabs(["Directory", "Customer Details", "Register Customer"])
 
     # -------------------------------------------------------------------------
     # TAB 1: Directory
@@ -72,7 +70,7 @@ def render_customers_page(settings: Settings) -> None:
             ]
 
         if not customers:
-            st.info("ℹ️ No customers found matching criteria.")
+            st.info("No customers found matching criteria.")
         else:
             table_data = []
             for c in customers:
@@ -118,9 +116,9 @@ def render_customers_page(settings: Settings) -> None:
                 cust = None
 
             if not cust:
-                st.error(f"❌ Customer with ID `{lookup_id}` not found.")
+                st.error(f"Customer with ID `{lookup_id}` not found.")
             else:
-                st.markdown(f"### 👤 {cust.name}")
+                st.markdown(f"### {cust.name}")
                 info_c1, info_c2, info_c3 = st.columns(3)
                 info_c1.markdown(f"**ID**: `{cust.id}`")
                 info_c2.markdown(f"**Email**: `{cust.email}`")
@@ -129,7 +127,7 @@ def render_customers_page(settings: Settings) -> None:
                 st.divider()
 
                 # Products
-                st.markdown("#### 📦 Associated Products")
+                st.markdown("#### Associated Products")
                 products = service.get_customer_products(cust.id)
                 if not products:
                     st.info("No registered products associated with this customer.")
@@ -138,24 +136,17 @@ def render_customers_page(settings: Settings) -> None:
                         st.markdown(f"- **{p.name}** (SKU: `{p.sku}`, Ver: `{p.version}`)")
 
                 # Tickets
-                st.markdown("#### 🎫 Support Tickets")
+                st.markdown("#### Support Tickets")
                 tickets = service.list_customer_tickets(cust.id)
                 if not tickets:
                     st.info("No support tickets on record for this customer.")
                 else:
                     for t in tickets:
-                        stat_icon = (
-                            "🟢"
-                            if t.status.value == "resolved"
-                            else "🔵"
-                            if t.status.value == "in_progress"
-                            else "🟡"
-                        )
-                        stat_lbl = t.status.value.upper()
-                        st.markdown(f"- **{stat_icon} {t.title}** (`{t.id}`, `{stat_lbl}`)")
+                        stat_lbl = t.status.value.replace("_", " ").upper()
+                        st.markdown(f"- **{t.title}** (`{t.id}` | `{stat_lbl}`)")
 
                 # Conversations
-                st.markdown("#### 💬 Support Conversations")
+                st.markdown("#### Support Conversations")
                 convs = service.list_customer_conversations(cust.id)
                 if not convs:
                     st.info("No conversations on record.")
@@ -170,7 +161,7 @@ def render_customers_page(settings: Settings) -> None:
     # TAB 3: Register
     # -------------------------------------------------------------------------
     with tab3:
-        st.markdown("#### Register a New Customer")
+        st.markdown("#### Register Customer")
         with st.form("form_register_customer", clear_on_submit=True):
             r_name = st.text_input("Customer Name", placeholder="Jane Doe")
             r_email = st.text_input("Email Address", placeholder="jane.doe@example.com")
@@ -189,11 +180,11 @@ def render_customers_page(settings: Settings) -> None:
                             email=r_email.strip(),
                             tier=r_tier,
                         )
-                        st.success(f"✅ Registered **{new_c.name}** (ID: `{new_c.id}`)")
+                        st.success(f"Registered **{new_c.name}** (ID: `{new_c.id}`)")
                         st.session_state.pop("cached_overview_metrics", None)
                     except DuplicateEntityError as err:
-                        st.error(f"❌ Customer already exists: {err}")
+                        st.error(f"Customer already exists: {err}")
                     except ValidationError as err:
-                        st.warning(f"⚠️ Validation error: {err}")
+                        st.warning(f"Validation error: {err}")
                     except Exception as err:
-                        st.error(f"❌ Failed to register: {err}")
+                        st.error(f"Failed to register: {err}")

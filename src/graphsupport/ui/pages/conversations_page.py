@@ -28,7 +28,7 @@ def _get_service(settings: Settings) -> SupportService | None:
 
 def render_conversations_page(settings: Settings) -> None:
     """Render the conversation history and transcript inspection page."""
-    st.subheader("📜 Multi-Session Conversation Transcripts")
+    st.subheader("Multi-Session Conversation Transcripts")
     st.caption(
         "Audit historical support conversations, inspect chronological message ordering, "
         "and review linked support tickets."
@@ -36,7 +36,7 @@ def render_conversations_page(settings: Settings) -> None:
 
     service = _get_service(settings)
     if not service:
-        st.warning("⚠️ **Neo4j is not connected.** Conversation history is disabled.")
+        st.warning("**Neo4j is not connected.** Conversation history is disabled.")
         return
 
     top_col1, top_col2 = st.columns([3, 1])
@@ -50,7 +50,7 @@ def render_conversations_page(settings: Settings) -> None:
         return
 
     if not conversations:
-        st.info("ℹ️ No support conversations found on record.")
+        st.info("No support conversations found on record.")
         return
 
     conv_options = {
@@ -80,7 +80,7 @@ def render_conversations_page(settings: Settings) -> None:
     # Message Stream
     messages = service.get_conversation_messages(sel_conv_id)
     if not messages:
-        st.info("ℹ️ This conversation session contains no recorded messages.")
+        st.info("This conversation session contains no recorded messages.")
         return
 
     st.markdown(f"#### Messages ({len(messages)} Total)")

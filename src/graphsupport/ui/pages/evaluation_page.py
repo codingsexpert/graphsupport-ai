@@ -29,14 +29,14 @@ def _get_service(settings: Settings) -> SupportService | None:
 
 def render_evaluation_page(settings: Settings) -> None:
     """Render the automated AI evaluation and benchmarking dashboard."""
-    st.subheader("📈 AI Grounding & Memory Evaluation")
+    st.subheader("AI Grounding & Memory Evaluation")
     st.caption(
         "Automated benchmark suite measuring retrieval fidelity, outcome invariance, "
         "tool boundary enforcement, anti-hallucination validation, and latency."
     )
 
     st.info(
-        "⚡ **Cost & Safety Policy**: This benchmark suite executes deterministic offline "
+        "**Cost & Safety Policy**: This benchmark suite executes deterministic offline "
         "test vectors against domain repositories. **Zero paid LLM tokens are consumed.**"
     )
 
@@ -44,7 +44,7 @@ def render_evaluation_page(settings: Settings) -> None:
 
     top_c1, top_c2 = st.columns([3, 1])
     with top_c2:
-        run_now = st.button("🚀 Run System Benchmark", use_container_width=True, key="btn_run_eval")
+        run_now = st.button("Run System Benchmark", use_container_width=True, key="btn_run_eval")
 
     report: EvaluationReport | None = st.session_state.get("cached_eval_report")
     if run_now or report is None:
@@ -71,7 +71,7 @@ def render_evaluation_page(settings: Settings) -> None:
     st.markdown("#### Benchmark Suite Results")
     table_rows = []
     for item in report.benchmark_items:
-        status_str = "✅ PASSED" if item.passed else "❌ FAILED"
+        status_str = "PASSED" if item.passed else "FAILED"
         table_rows.append(
             {
                 "Benchmark Name": item.name,
@@ -88,7 +88,7 @@ def render_evaluation_page(settings: Settings) -> None:
     st.divider()
 
     # Qualitative Benchmark Notes & Production Readiness Notice
-    st.markdown("#### 📋 Operational Observations & Verification Pillars (Phase 8)")
+    st.markdown("#### Operational Observations & Architecture Verification")
     st.markdown(
         """
         - **1. Context Retrieval Relevance**: Open tickets receive priority ranking

@@ -1,6 +1,7 @@
 """CSS styles and visual design tokens for the GraphSupport AI Streamlit UI.
 
-Provides polished styling, status badges, metrics cards, and container styling.
+Provides clean, enterprise-grade styling, minimal typography, refined status pills,
+and uncluttered dashboard containers.
 """
 
 import streamlit as st
@@ -11,10 +12,11 @@ def apply_custom_styles() -> None:
     css = """
     <style>
     /* Global Typography & Spacing */
-    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
     html, body, [class*="css"] {
-        font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        color: #0f172a;
     }
 
     code, pre {
@@ -23,137 +25,176 @@ def apply_custom_styles() -> None:
 
     /* Main Container Padding */
     .block-container {
-        padding-top: 2rem !important;
-        padding-bottom: 3rem !important;
-        max-width: 1100px;
+        padding-top: 1.5rem !important;
+        padding-bottom: 2.5rem !important;
+        max-width: 1200px;
     }
 
     /* Hero Header */
+    .gs-header-wrapper {
+        margin-bottom: 1.5rem;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid #e2e8f0;
+    }
+
     .gs-hero-badge {
         display: inline-flex;
         align-items: center;
-        gap: 0.5rem;
-        padding: 0.35rem 0.85rem;
-        border-radius: 9999px;
-        font-size: 0.8rem;
+        padding: 0.25rem 0.65rem;
+        border-radius: 6px;
+        font-size: 0.75rem;
         font-weight: 600;
-        letter-spacing: 0.04em;
+        letter-spacing: 0.02em;
         text-transform: uppercase;
-        background: rgba(56, 189, 248, 0.12);
-        color: #0284c7;
-        border: 1px solid rgba(56, 189, 248, 0.35);
-        margin-bottom: 0.75rem;
+        background: #f1f5f9;
+        color: #334155;
+        border: 1px solid #e2e8f0;
+        margin-bottom: 0.5rem;
     }
 
     .gs-title {
-        font-size: 2.25rem;
+        font-size: 1.75rem;
         font-weight: 700;
-        letter-spacing: -0.03em;
+        letter-spacing: -0.02em;
         color: #0f172a;
         margin-bottom: 0.25rem;
+        line-height: 1.25;
     }
 
     .gs-subtitle {
-        font-size: 1.05rem;
+        font-size: 0.95rem;
         color: #64748b;
-        margin-bottom: 1.5rem;
-        line-height: 1.5;
+        margin-bottom: 0;
+        line-height: 1.4;
     }
 
     /* Status & Metric Cards */
     .gs-card {
         background: #ffffff;
         border: 1px solid #e2e8f0;
-        border-radius: 12px;
-        padding: 1.25rem;
-        box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
-        transition: transform 0.15s ease, box-shadow 0.15s ease;
-        margin-bottom: 1rem;
+        border-radius: 8px;
+        padding: 1rem 1.15rem;
+        box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.04);
+        margin-bottom: 0.75rem;
     }
 
     .gs-card:hover {
         border-color: #cbd5e1;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.07);
     }
 
     .gs-card-title {
-        font-size: 0.85rem;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
+        font-size: 0.8rem;
+        font-weight: 500;
         color: #64748b;
-        margin-bottom: 0.5rem;
+        margin-bottom: 0.35rem;
     }
 
     .gs-card-value {
-        font-size: 1.35rem;
+        font-size: 1.4rem;
         font-weight: 700;
         color: #0f172a;
-        margin-bottom: 0.25rem;
+        margin-bottom: 0.2rem;
     }
 
     .gs-card-desc {
-        font-size: 0.85rem;
-        color: #475569;
-        line-height: 1.4;
+        font-size: 0.8rem;
+        color: #64748b;
+        line-height: 1.35;
     }
 
-    /* Pill Badges */
+    /* Minimal Pill Badges */
     .gs-pill-success {
-        display: inline-block;
-        padding: 0.2rem 0.6rem;
-        border-radius: 6px;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.15rem 0.5rem;
+        border-radius: 4px;
         font-size: 0.75rem;
-        font-weight: 600;
-        background: #dcfce7;
-        color: #15803d;
-        border: 1px solid #bbf7d0;
+        font-weight: 500;
+        background: #ecfdf5;
+        color: #047857;
+        border: 1px solid #a7f3d0;
     }
 
     .gs-pill-warning {
-        display: inline-block;
-        padding: 0.2rem 0.6rem;
-        border-radius: 6px;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.15rem 0.5rem;
+        border-radius: 4px;
         font-size: 0.75rem;
-        font-weight: 600;
-        background: #fef3c7;
+        font-weight: 500;
+        background: #fffbeb;
         color: #b45309;
         border: 1px solid #fde68a;
     }
 
     .gs-pill-neutral {
-        display: inline-block;
-        padding: 0.2rem 0.6rem;
-        border-radius: 6px;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.15rem 0.5rem;
+        border-radius: 4px;
         font-size: 0.75rem;
-        font-weight: 600;
-        background: #f1f5f9;
+        font-weight: 500;
+        background: #f8fafc;
         color: #475569;
         border: 1px solid #e2e8f0;
     }
 
-    /* Phase Timeline Box */
-    .gs-phase-item {
-        border-left: 3px solid #e2e8f0;
-        padding-left: 1rem;
-        margin-bottom: 1.25rem;
-        position: relative;
+    /* Sidebar Status Box */
+    .gs-sidebar-status {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        padding: 0.65rem 0.75rem;
+        margin-top: 0.5rem;
+        font-size: 0.8rem;
     }
 
-    .gs-phase-item.active {
-        border-left-color: #0284c7;
+    .gs-status-item {
+        display: flex;
+        align-items: center;
+        gap: 0.45rem;
+        margin-bottom: 0.3rem;
+        color: #334155;
+        font-weight: 500;
     }
 
-    .gs-phase-title {
-        font-size: 0.95rem;
-        font-weight: 700;
-        color: #0f172a;
+    .gs-status-item:last-child {
+        margin-bottom: 0;
     }
 
-    .gs-phase-desc {
-        font-size: 0.85rem;
-        color: #64748b;
-        margin-top: 0.2rem;
+    .gs-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        display: inline-block;
+    }
+
+    .gs-dot-green {
+        background-color: #10b981;
+    }
+
+    .gs-dot-amber {
+        background-color: #f59e0b;
+    }
+
+    .gs-dot-gray {
+        background-color: #94a3b8;
+    }
+
+    /* Tabs Styling */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 1.5rem;
+        border-bottom: 1px solid #e2e8f0;
+    }
+
+    .stTabs [data-baseweb="tab"] {
+        padding-top: 0.5rem;
+        padding-bottom: 0.75rem;
+        font-weight: 500;
+        font-size: 0.9rem;
     }
     </style>
     """
