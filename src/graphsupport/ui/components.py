@@ -16,12 +16,17 @@ def render_header(
     title: str,
     subtitle: str,
     badge: str = "AI Support Intelligence",
+    phase_name: str | None = None,
+    **kwargs: Any,
 ) -> None:
     """Render the clean application hero section."""
+    display_badge = badge
+    if phase_name and badge == "AI Support Intelligence":
+        display_badge = phase_name
     st.markdown(
         f"""
         <div class="gs-header-wrapper">
-            <span class="gs-hero-badge">{badge}</span>
+            <span class="gs-hero-badge">{display_badge}</span>
             <div class="gs-title">{title}</div>
             <div class="gs-subtitle">{subtitle}</div>
         </div>
